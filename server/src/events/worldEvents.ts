@@ -57,9 +57,14 @@ export class WorldEvents {
       }
     }
 
-    // False rumours, at a rate that keeps the false share ≈ rumourFalseRate.
+    // False rumours: base rate chosen so the false share ≈ rumourFalseRate, plus a
+    // correction toward the target when the running share has drifted below it.
     const trueRate = chance * e.rumourLeadChance;
-    const pFalse = Math.min(0.9, (trueRate * e.rumourFalseRate) / Math.max(0.01, 1 - e.rumourFalseRate));
+    let pFalse = Math.min(0.9, (trueRate * e.rumourFalseRate) / Math.max(0.01, 1 - e.rumourFalseRate));
+    const total = this.rumours.true + this.rumours.false;
+    const deficit = e.rumourFalseRate * total - this.rumours.false;
+    if (deficit >= 1) pFalse = Math.max(pFalse, 0.6);
+    else if (deficit <= -1) pFalse = 0;
     if (rng.chance(pFalse)) {
       const fake = rollEvent(rng, this.context(now));
       if (fake) {

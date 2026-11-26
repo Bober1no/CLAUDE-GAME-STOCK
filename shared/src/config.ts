@@ -180,8 +180,8 @@ export const CONFIG = {
       urban: { oil: 0, food: 0.15, metals: 0.1, tech: 0.5 },
     } as Record<Terrain, Record<ResourceKind, number>>,
     /** Cash income per province per second. */
-    taxPerProvince: 4,
-    capitalTaxBonus: 6,
+    taxPerProvince: 2,
+    capitalTaxBonus: 3,
     /** Value of a province for net worth. */
     provinceValue: 900,
     capitalValue: 2500,
@@ -221,7 +221,7 @@ export const CONFIG = {
     well: { cost: 1300, resources: { metals: 20 }, buildSec: 30, yield: { oil: 0.5 }, defence: 0 },
     lab: { cost: 1800, resources: { metals: 20, oil: 10 }, buildSec: 40, yield: { tech: 0.35 }, defence: 0 },
     fort: { cost: 1500, resources: { metals: 40 }, buildSec: 35, yield: {}, defence: 0.5 },
-    port: { cost: 1400, resources: { metals: 25 }, buildSec: 30, yield: {}, defence: 0, tax: 5 },
+    port: { cost: 1400, resources: { metals: 25 }, buildSec: 30, yield: {}, defence: 0, tax: 3 },
   } as Record<
     BuildingKind,
     {
