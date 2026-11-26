@@ -818,3 +818,137 @@ table.grid tr.click:hover td {
     max-height: 420px;
   }
 }
+
+/* ---------------------------------------------------------------- world map */
+.world-wrap,
+.market-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.market-wrap > .panel {
+  border: none;
+}
+.market-wrap > .panel + .panel {
+  border-top: 1px solid var(--line);
+}
+.map-box {
+  flex: 1;
+  min-height: 240px;
+  position: relative;
+  background: #05080c;
+}
+svg.map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+.prov {
+  cursor: pointer;
+}
+.prov:hover path:first-child {
+  stroke: #8a99ab;
+  stroke-width: 1.8;
+}
+.pname {
+  font-family: var(--sans);
+  font-size: 10px;
+  fill: #e6edf5;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: #05070a;
+  stroke-width: 3px;
+  letter-spacing: 0.02em;
+}
+.pglyph {
+  font-size: 9px;
+  fill: #b8c4d2;
+  paint-order: stroke;
+  stroke: #05070a;
+  stroke-width: 2px;
+}
+.pgar {
+  font-family: var(--mono);
+  font-size: 9px;
+  fill: #8a99ab;
+  paint-order: stroke;
+  stroke: #05070a;
+  stroke-width: 2px;
+}
+.army-txt {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+}
+.army.mine {
+  cursor: pointer;
+}
+.army {
+  cursor: pointer;
+}
+.pp {
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  max-height: 46%;
+  overflow: auto;
+  flex-shrink: 0;
+}
+.pp-empty {
+  color: var(--faint);
+  padding: 12px;
+  font-size: 12px;
+}
+.pp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.pp-head b {
+  font-size: 15px;
+}
+.pp-body {
+  padding: 8px 12px 12px;
+}
+.pp-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+.pp-stats > div {
+  display: flex;
+  flex-direction: column;
+}
+.pp-stats .k {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+}
+.build-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 4px;
+}
+.stab {
+  height: 8px;
+  background: #19212a;
+  position: relative;
+}
+.stab > div {
+  position: absolute;
+  inset: 0 auto 0 0;
+  transition: width 0.5s;
+}
+.stab > span {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--red);
+}
