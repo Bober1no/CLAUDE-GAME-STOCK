@@ -29,6 +29,9 @@ import { Military } from '../military/military.js';
 import { Proposals } from '../diplomacy/proposals.js';
 import { Diplomacy } from '../diplomacy/diplomacy.js';
 import { WorldEvents } from '../events/worldEvents.js';
+import { Espionage } from '../espionage/spies.js';
+import { detectManipulation, fineFor } from '../espionage/regulator.js';
+import type { TradeRecord } from '../market/market.js';
 
 export interface GamePlayer {
   id: string;
@@ -46,6 +49,14 @@ export class Game {
   readonly proposals: Proposals;
   readonly diplomacy: Diplomacy;
   readonly events: WorldEvents;
+  readonly espionage: Espionage;
+  private tradeHistory: TradeRecord[] = [];
+  private hegemonySince = new Map<string, number>();
+  private lastVictoryCheck = 0;
+  readonly initialCapitals: number[];
+  fines = new Map<string, number>();
+  /** Net worth at the opening bell, for "biggest loser". */
+  readonly startWorth = new Map<string, number>();
   /** Counters for the recap. */
   stats = { tipsSent: 0, battles: 0 };
   readonly startedAt: number;
@@ -75,7 +86,9 @@ export class Game {
     this.seed = seed;
     this.rng = new Rng(seed);
     this.startedAt = now;
-    this.endsAt = now + settings.sessionMinutes * 60_000;
+    // WARMARKET_SESSION_SCALE (dev only) shrinks sessions, e.g. 0.02 → a 10-minute game lasts 12s.
+    const scale = Number(process.env.WARMARKET_SESSION_SCALE) > 0 ? Number(process.env.WARMARKET_SESSION_SCALE) : 1;
+    this.endsAt = now + settings.sessionMinutes * 60_000 * scale;
     this.nextMarketTickAt = now + CONFIG.clocks.marketTickMs;
     this.market = new Market(this.rng, now);
     this.news = new NewsService(emit);
@@ -86,6 +99,8 @@ export class Game {
     this.proposals = new Proposals(this);
     this.diplomacy = new Diplomacy(this);
     this.events = new WorldEvents(this);
+    this.espionage = new Espionage(this);
+    this.initialCapitals = this.world.nations.map((n) => n.capital);
 
     for (const c of CONFIG.commodities) {
       this.market.addAsset({ id: c.id, name: c.name, kind: 'commodity', basePrice: c.basePrice }, c.depth, c.volatility);
@@ -103,6 +118,7 @@ export class Game {
       const role = this.roles.get(p.id);
       this.market.openAccount(p.id, CONFIG.start.treasury * (role === 'whale' ? CONFIG.roles.whaleCashMultiplier : 1));
     }
+    for (const p of players) this.startWorth.set(p.id, this.netWorth(p.id));
   }
 
   private assignRoles(): void {
@@ -219,6 +235,7 @@ export class Game {
     this.proposals.tick(now);
     this.diplomacy.tick(now);
     this.events.tick(now);
+    this.espionage.tick(now);
   }
 
   onWorldEvent(e: WorldEvent, now: number): void {
@@ -308,7 +325,23 @@ export class Game {
   protected beforeMarketTick(now: number): void {
     this.events.onMarketTick(now);
   }
-  protected afterMarketTick(_res: ReturnType<Market['tick']>, _now: number): void {}
+  /** Regulator: look for pump-and-dump round trips in this tick's trades. */
+  protected afterMarketTick(res: ReturnType<Market['tick']>, _now: number): void {
+    const flags = detectManipulation(this.tradeHistory, res.trades);
+    for (const f of flags) {
+      if (!this.rng.chance(CONFIG.regulator.investigateChance)) continue;
+      const fine = fineFor(f.profit);
+      this.market.debit(f.playerId, fine);
+      this.fines.set(f.playerId, (this.fines.get(f.playerId) ?? 0) + fine);
+      const n = this.world.nationOf(f.playerId)!;
+      n.reputation = Math.max(0, n.reputation - 5);
+      this.news.post('Regulator', `Regulator fines ${n.name} $${fine.toLocaleString('en-US')} for manipulating ${f.assetId} (+${(f.rise * 100).toFixed(0)}% pump then dump)`, 'bad', true, [f.assetId]);
+      this.notify(f.playerId, 'bad', `The regulator caught your ${f.assetId} round trip. Fined $${fine.toLocaleString('en-US')}.`);
+    }
+    this.tradeHistory.push(...res.trades);
+    const cutoff = res.tick - CONFIG.regulator.windowTicks - 1;
+    this.tradeHistory = this.tradeHistory.filter((t) => t.tick >= cutoff);
+  }
 
   broadcastPressure(now: number): void {
     const delayed = this.market.delayedPressure(now, CONFIG.clocks.pressureDelayMs);
@@ -331,7 +364,7 @@ export class Game {
   }
 
   protected seesExactPressure(playerId: string): boolean {
-    return this.roles.get(playerId) === 'analyst';
+    return this.roles.get(playerId) === 'analyst' || this.espionage.orderflowOn(playerId, this.clock()).length > 0;
   }
 
   pushAccount(playerId: string): void {
@@ -395,7 +428,37 @@ export class Game {
   dealFlows(nationId: string): Partial<Record<string, number>> {
     return this.diplomacy.flows(nationId);
   }
-  protected checkVictory(_now: number): void {}
+  protected checkVictory(now: number): void {
+    if (now - this.lastVictoryCheck < 1000 || this.ended) return;
+    this.lastVictoryCheck = now;
+    const alive = this.world.nations.filter((n) => !n.eliminated);
+    switch (this.settings.mode) {
+      case 'domination':
+        for (const n of alive) {
+          if (this.world.nationProductionShare(n.id, now) >= CONFIG.modes.dominationShare) {
+            return this.finish(now, `${n.name} controls ${Math.round(CONFIG.modes.dominationShare * 100)}% of world production`, n.playerId);
+          }
+        }
+        break;
+      case 'hegemony': {
+        const need = Math.floor(this.initialCapitals.length / 2) + 1;
+        for (const n of this.world.nations) {
+          const held = this.initialCapitals.filter((c) => this.world.provinces[c].ownerId === n.id).length;
+          if (held >= need && this.players.length > 1) {
+            const since = this.hegemonySince.get(n.id) ?? now;
+            this.hegemonySince.set(n.id, since);
+            if (since === now) this.news.post('War Correspondent', `${n.name} now holds ${held} founding capitals. Hegemony in ${CONFIG.modes.hegemonyHoldSec}s unless someone stops them.`, 'bad', true);
+            if (now - since >= CONFIG.modes.hegemonyHoldSec * 1000) return this.finish(now, `${n.name} established hegemony over the founding capitals`, n.playerId);
+          } else this.hegemonySince.delete(n.id);
+        }
+        break;
+      }
+      case 'lastStanding':
+        if (this.players.length > 1 && alive.length === 1) return this.finish(now, `${alive[0].name} is the last nation standing`, alive[0].playerId);
+        if (this.players.length > 1 && alive.length === 0) return this.finish(now, 'Everybody lost. Impressive.');
+        break;
+    }
+  }
 
   // ------------------------------------------------------------------- views
 
@@ -482,20 +545,20 @@ export class Game {
   recruitingFor(nationId: string): WorldView['me']['recruiting'] {
     return this.military.recruitViews(nationId);
   }
-  spiesFor(_playerId: string, _now: number): WorldView['me']['spies'] {
-    return [];
+  spiesFor(playerId: string, _now: number): WorldView['me']['spies'] {
+    return this.espionage.views(this.world.nationOf(playerId)!.id);
   }
-  spyVisionOn(_playerId: string, _now: number): string[] {
-    return [];
+  spyVisionOn(playerId: string, now: number): string[] {
+    return this.espionage.visionOn(playerId, now);
   }
-  orderflowOn(_playerId: string, _now: number): string[] {
-    return [];
+  orderflowOn(playerId: string, now: number): string[] {
+    return this.espionage.orderflowOn(playerId, now);
   }
   warCooldownUntil(nationId: string): number {
     return this.military.cooldownUntil(nationId);
   }
-  journalistReadyAt(_playerId: string): number {
-    return 0;
+  journalistReadyAt(playerId: string): number {
+    return this.espionage.journalistReadyAt(playerId);
   }
   warsOf(nationId: string): string[] {
     return this.military.enemiesOf(nationId);
@@ -518,11 +581,28 @@ export class Game {
   proposalViews(nationId: string): WorldView['proposals'] {
     return this.proposals.viewsFor(nationId);
   }
-  spiedOrders(_playerId: string, _now: number): WorldView['spiedOrders'] {
-    return [];
+  spiedOrders(playerId: string, now: number): WorldView['spiedOrders'] {
+    return this.espionage.orderflowOn(playerId, now).map((nid) => {
+      const target = this.world.nation(nid)!;
+      const acct = this.market.accounts.get(target.playerId);
+      return { nationId: nid, orders: acct ? acct.orders.map((o) => this.market.orderView(o)) : [] };
+    });
   }
-  objectiveText(_n: Nation, _now: number): string {
-    return 'Highest net worth when the timer ends wins.';
+  objectiveText(n: Nation, now: number): string {
+    switch (this.settings.mode) {
+      case 'domination':
+        return `Domination: control ${Math.round(CONFIG.modes.dominationShare * 100)}% of world production. You: ${(this.world.nationProductionShare(n.id, now) * 100).toFixed(0)}%.`;
+      case 'hegemony': {
+        const held = this.initialCapitals.filter((c) => this.world.provinces[c].ownerId === n.id).length;
+        const need = Math.floor(this.initialCapitals.length / 2) + 1;
+        const since = this.hegemonySince.get(n.id);
+        return `Hegemony: hold ${need} of ${this.initialCapitals.length} founding capitals for ${CONFIG.modes.hegemonyHoldSec}s. You hold ${held}.${since ? ` Holding for ${Math.floor((now - since) / 1000)}s!` : ''}`;
+      }
+      case 'lastStanding':
+        return `Last one standing: ${this.world.nations.filter((x) => !x.eliminated).length} nations remain. Lose all land and you are out.`;
+      default:
+        return 'Highest net worth when the timer ends wins.';
+    }
   }
 
   leaderboard(): WorldView['leaderboard'] {
@@ -648,8 +728,21 @@ export class Game {
     }
   }
 
-  protected handleSpy(_playerId: string, _n: Nation, _a: Action, _now: number): Ack {
-    return { ok: false, error: 'Not available yet' };
+  protected handleSpy(playerId: string, n: Nation, a: Action, now: number): Ack {
+    const res = (err: string | null): Ack => (err ? { ok: false, error: err } : { ok: true });
+    switch (a.type) {
+      case 'trainSpy': {
+        const r = res(this.espionage.train(playerId, n.id, now));
+        if (r.ok) this.pushAccount(playerId);
+        return r;
+      }
+      case 'spyMission':
+        return res(this.espionage.send(n.id, a.spyId, a.targetId, a.mission, a.assetId, now));
+      case 'publish':
+        return res(this.espionage.publish(playerId, a.headline, now));
+      default:
+        return { ok: false, error: 'Unknown action' };
+    }
   }
 
   // ------------------------------------------------------------------- end
@@ -688,7 +781,47 @@ export class Game {
   }
 
   protected awards(_now: number): GameRecap['awards'] {
-    return [];
+    const out: GameRecap['awards'] = [];
+    const name = (pid: string) => this.players.find((p) => p.id === pid)?.name ?? '?';
+    const board = this.leaderboard();
+    const change = (r: { playerId: string; netWorth: number }) => r.netWorth / Math.max(1, this.startWorth.get(r.playerId) ?? 1) - 1;
+    if (board.length > 1) {
+      const loser = [...board].sort((a, b) => change(a) - change(b))[0];
+      const c = change(loser);
+      out.push(
+        c < 0
+          ? { title: 'Biggest loser', who: loser.name, detail: `Net worth ${(c * 100).toFixed(0)}% since the opening bell` }
+          : { title: 'Biggest loser', who: 'Nobody', detail: 'Everyone grew. Boring.' },
+      );
+    }
+    let worst: { pid: string; pnl: number; asset: string } | null = null;
+    for (const [pid, acct] of this.market.accounts) if (acct.worstTrade && (!worst || acct.worstTrade.pnl < worst.pnl)) worst = { pid, pnl: acct.worstTrade.pnl, asset: acct.worstTrade.assetId };
+    if (worst && worst.pnl < 0) out.push({ title: 'Worst trade', who: name(worst.pid), detail: `Lost $${Math.round(-worst.pnl).toLocaleString('en-US')} on ${worst.asset} in one go` });
+    const war = this.military.biggestWar();
+    if (war && war.casualties > 0) {
+      const a = this.world.nation(war.a)!;
+      const b = this.world.nation(war.b)!;
+      out.push({ title: 'Biggest war', who: `${a.name.split(' ').pop()} vs ${b.name.split(' ').pop()}`, detail: `${Math.round(war.casualties)} casualties over ${war.battles} battles` });
+    }
+    const doge = CONFIG.memecoin.id;
+    let rug: { pid: string; loss: number } | null = null;
+    for (const [pid, acct] of this.market.accounts) {
+      let pnl = acct.realisedByAsset.get(doge) ?? 0;
+      const pos = acct.positions.get(doge);
+      const price = this.market.assets.get(doge)!.price;
+      if (pos) pnl += pos.qty > 0 ? pos.qty * (price - pos.avgPrice) : -pos.qty * (pos.avgPrice - price);
+      if (pnl < 0 && (!rug || pnl < rug.loss)) rug = { pid, loss: pnl };
+    }
+    out.push(rug ? { title: 'Rugged by WarDoge', who: name(rug.pid), detail: `Down $${Math.round(-rug.loss).toLocaleString('en-US')} on the memecoin` } : { title: 'Rugged by WarDoge', who: 'Nobody', detail: 'Suspiciously sensible' });
+    const conqueror = [...this.world.nations].sort((a, b) => this.world.ownedBy(b.id).length - this.world.ownedBy(a.id).length)[0];
+    if (conqueror) out.push({ title: 'Largest empire', who: name(conqueror.playerId), detail: `${this.world.ownedBy(conqueror.id).length} provinces` });
+    const fined = [...this.fines].sort((a, b) => b[1] - a[1])[0];
+    if (fined) out.push({ title: 'Regulator’s favourite', who: name(fined[0]), detail: `$${fined[1].toLocaleString('en-US')} in fines` });
+    const spy = [...this.espionage.successes].sort((a, b) => b[1] - a[1])[0];
+    if (spy) out.push({ title: 'Spymaster', who: name(this.world.nation(spy[0])!.playerId), detail: `${spy[1]} successful missions` });
+    const shaky = [...this.world.nations].sort((a, b) => b.coups - a.coups)[0];
+    if (shaky && shaky.coups > 0) out.push({ title: 'Most coups', who: name(shaky.playerId), detail: `${shaky.coups} coup${shaky.coups > 1 ? 's' : ''}` });
+    return out;
   }
 }
 

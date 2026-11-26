@@ -86,6 +86,45 @@ auto-reconnects, shows a "Reconnecting…" banner, and rejoins your seat using t
 player token stored in localStorage. If the server restarted, the room is gone and you go back to
 the home screen with a message. Before a class session, open the site once so it's awake.
 
+## Testing with two browser tabs
+
+1. `npm run dev`, then open http://localhost:5173 in a normal window **and** a private/incognito
+   window (each window keeps its own seat in localStorage).
+2. Window A: enter a name → **Create game**. Pick a session length, mode and roles.
+3. Window B: enter a name and the 5-letter code → **Join**. Window A: **Start game**.
+4. Things to try:
+   * **Market:** pick an asset in the left list, queue BUY/SHORT orders in both windows, and
+     watch them clear together when the countdown hits 0. Try 5x leverage, and a limit order.
+   * **Nation:** click ★ capital, build a farm/mine, recruit an army. Export oil in the Nation tab.
+   * **War:** click your army marker, then a highlighted neighbour to march (30–90s). Neutral land
+     can be taken any time. For another player, Diplomacy → Nations → Declare war first.
+     Their companies drop, defence stocks jump.
+   * **Diplomacy:** chat (global or @private), propose an alliance (shared vision), offer a trade
+     deal, sanction someone. Two sanctioners = embargo.
+   * **Intel:** train a spy (30s), then surveil, read their trading desk, steal tech, or plant a
+     fake story about one of their companies.
+   * **Reconnect:** reload a tab mid-game. You land back in your seat.
+
+Dev shortcut: set `WARMARKET_SESSION_SCALE=0.05` on the server to make sessions 20× shorter, so
+you can reach the end-of-game recap quickly. Leave it unset in production.
+
+Keyboard: `W` world map, `M` market, `Tab` toggle, `Esc` deselect army.
+
+## Game systems
+
+| System | Where | Notes |
+| --- | --- | --- |
+| Nations | `world/world.ts` | Treasury = trading cash. Resources trickle from provinces + buildings. Food upkeep for land and armies. |
+| Stability | `world/economy.ts` | Drained by war, sanctions, starvation, crashing company stocks. Below 30: protests (production ×0.6). At 0: coup (40% of provinces revolt, 30% of the treasury is looted). |
+| Companies | `world/companies.ts` | 3 per nation, sector-tagged. Price reverts toward a fundamental built from stability × territory × sector output (defence likes war). |
+| Commodities | `world/economy.ts` | Fundamental follows live world supply of provinces with that specialty (war damage, droughts and discoveries move it). |
+| Military | `military/` | Recruit (20s), march to adjacent provinces (30–90s by terrain, slower by sea), battles via Lanchester's square law with terrain/fort bonuses and ±20% rolls. Head-on clashes on roads too. |
+| Fog of war | `military/military.ts` | You see your land, your army positions and routes, one hop around them, plus allies and spied nations. Everything else is never sent to your browser. |
+| Events | `events/` | 12 event types fire more often and harder as the session goes on. Rumour Mill pre-announces some (~40% of its rumours are false). Insider tips are sent privately and are sometimes wrong. |
+| Diplomacy | `diplomacy/` | Chat, trade deals (flows per minute; defaulting or breaking costs reputation), alliances, sanctions, embargo. |
+| Espionage | `espionage/` | Spies with 4 missions. A regulator fines pump-and-dump round trips. Secret roles: analyst (live order book), whale (2.5× cash), journalist (publishes headlines). |
+| Modes | `game/Game.ts` | Net worth (default), domination (45% of world production), hegemony (majority of founding capitals for 60s), last one standing. |
+
 ## How the market works
 
 * Assets: 8 commodities, 3 parody companies per player nation (sector-tagged), and one memecoin

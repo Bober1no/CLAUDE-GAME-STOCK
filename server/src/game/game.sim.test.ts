@@ -206,3 +206,71 @@ describe('phase 4 systems', () => {
     expect(acct.reserved).toBe(0);
   });
 });
+
+describe('phase 5 systems', () => {
+  it('spies train, run missions, and either succeed or get caught', () => {
+    const { g, ps } = makeGame(2, 31);
+    const A = g.world.nationOf(ps[0].id)!;
+    const B = g.world.nationOf(ps[1].id)!;
+    A.resources.tech = 200;
+    expect(g.handle(ps[0].id, { type: 'trainSpy' }).ok).toBe(true);
+    let t = run(g, T0, T0 + CONFIG.espionage.spyTrainSec * 1000 + 1000);
+    const spy = g.espionage.spies[0];
+    expect(spy.status).toBe('idle');
+    expect(g.handle(ps[0].id, { type: 'spyMission', spyId: spy.id, targetId: B.id, mission: 'fakeNews', assetId: 'OIL' }).ok).toBe(false);
+    expect(g.handle(ps[0].id, { type: 'spyMission', spyId: spy.id, targetId: B.id, mission: 'vision' }).ok).toBe(true);
+    t = run(g, t, t + 10_000);
+    const caught = !g.espionage.spies.includes(spy);
+    if (!caught) {
+      expect(g.espionage.visionOn(ps[0].id, t)).toContain(B.id);
+      const v = g.buildView(ps[0].id, t);
+      expect(v.provinces[B.capital].visible).toBe(true);
+    } else {
+      expect(A.reputation).toBeLessThan(CONFIG.diplomacy.startingReputation);
+    }
+  });
+
+  it('only the journalist can publish, with a cooldown', () => {
+    const ps = [0, 1, 2].map((i) => ({ id: `p${i}`, name: `P${i}`, color: '#fff' }));
+    const g = new Game('T', ps, { sessionMinutes: 30, mode: 'networth', rolesEnabled: true }, nullEmitter, () => {}, 77, T0);
+    g.clock = () => T0;
+    const j = ps.find((p) => g.roles.get(p.id) === 'journalist')!;
+    const other = ps.find((p) => g.roles.get(p.id) !== 'journalist')!;
+    expect(g.handle(other.id, { type: 'publish', headline: 'Fake news about stuff' }).ok).toBe(false);
+    expect(g.handle(j.id, { type: 'publish', headline: 'Totally real scoop here' }).ok).toBe(true);
+    expect(g.handle(j.id, { type: 'publish', headline: 'Another scoop right now' }).ok).toBe(false);
+    const whale = ps.find((p) => g.roles.get(p.id) === 'whale')!;
+    expect(g.market.accounts.get(whale.id)!.cash).toBeGreaterThan(CONFIG.start.treasury);
+  });
+
+  it('last-one-standing ends when only one nation is left', () => {
+    const { g, ps } = makeGame(2, 32, 'lastStanding');
+    const B = g.world.nationOf(ps[1].id)!;
+    for (const p of g.world.ownedBy(B.id)) g.world.transfer(p.id, null);
+    run(g, T0, T0 + 3000);
+    expect(g.ended).toBe(true);
+    expect(g.recap!.winnerId).toBe(ps[0].id);
+  });
+
+  it('domination ends when one nation controls the required share', () => {
+    const ps = [0, 1].map((i) => ({ id: `p${i}`, name: `P${i}`, color: '#fff' }));
+    const g = new Game('T', ps, { sessionMinutes: 30, mode: 'domination', rolesEnabled: false }, nullEmitter, () => {}, 33, T0);
+    g.clock = () => T0;
+    const A = g.world.nationOf(ps[0].id)!;
+    for (const p of g.world.provinces) if (p.ownerId === null) g.world.transfer(p.id, A.id);
+    run(g, T0, T0 + 3000);
+    expect(g.ended).toBe(true);
+    expect(g.recap!.winnerId).toBe(ps[0].id);
+    expect(g.recap!.awards.length).toBeGreaterThan(0);
+  });
+
+  it('recap names a WarDoge victim when someone loses on it', () => {
+    const { g, ps } = makeGame(2, 34);
+    g.handle(ps[0].id, { type: 'order', assetId: CONFIG.memecoin.id, side: 'buy', orderType: 'market', qty: 1000 });
+    run(g, T0, T0 + 21_000);
+    g.market.assets.get(CONFIG.memecoin.id)!.price = 0.05;
+    g.finish(T0 + 22_000, 'test');
+    const rug = g.recap!.awards.find((a) => a.title === 'Rugged by WarDoge')!;
+    expect(rug.who).toBe('P0');
+  });
+});

@@ -1009,3 +1009,18 @@ svg.map {
 .deal-grid .input {
   padding: 4px 6px;
 }
+
+/* ---------------------------------------------------------------- intel */
+.spy-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid #141b23;
+  font-size: 12px;
+}
+.mission-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}

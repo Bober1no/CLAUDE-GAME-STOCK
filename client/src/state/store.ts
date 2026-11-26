@@ -40,6 +40,8 @@ export interface State {
   breaking: NewsItem | null;
   chat: ChatMessage[];
   notices: Notice[];
+  /** Private tips & intel kept for the Intel tab. */
+  tips: Notice[];
   recap: GameRecap | null;
   selectedAsset: string;
   selectedProvince: number | null;
@@ -64,6 +66,7 @@ const initial: State = {
   breaking: null,
   chat: [],
   notices: [],
+  tips: [],
   recap: null,
   selectedAsset: 'OIL',
   selectedProvince: null,
@@ -98,6 +101,7 @@ export function resetGameState(): void {
     breaking: null,
     chat: [],
     notices: [],
+    tips: [],
     recap: null,
     selectedProvince: null,
     selectedArmy: null,
@@ -118,7 +122,7 @@ export function serverNow(): number {
 }
 
 export function pushNotice(n: Notice): void {
-  setState((s) => ({ notices: [...s.notices.slice(-5), n] }));
+  setState((s) => ({ notices: [...s.notices.slice(-5), n], tips: n.kind === 'tip' ? [n, ...s.tips].slice(0, 20) : s.tips }));
   setTimeout(() => setState((s) => ({ notices: s.notices.filter((x) => x.id !== n.id) })), n.kind === 'tip' ? 12_000 : 6_000);
 }
 
