@@ -952,3 +952,60 @@ svg.map {
   width: 1px;
   background: var(--red);
 }
+
+/* ---------------------------------------------------------------- diplomacy */
+.subtabs {
+  display: flex;
+  gap: 4px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.subtabs .btn {
+  text-transform: capitalize;
+}
+.subtabs .badge,
+.btn .badge {
+  background: var(--red);
+  color: #000;
+  border-radius: 6px;
+  padding: 0 4px;
+  margin-left: 4px;
+  font-size: 9px;
+}
+.chat {
+  padding: 6px 10px;
+}
+.chat-line {
+  padding: 2px 0;
+  font-size: 12.5px;
+  word-wrap: break-word;
+}
+.chat-line.dm {
+  background: rgba(160, 108, 255, 0.07);
+  margin: 0 -10px;
+  padding: 2px 10px;
+}
+.chat-in {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.nation-card {
+  border: 1px solid var(--line);
+  padding: 7px 9px;
+  margin-bottom: 6px;
+  background: var(--bg2);
+}
+.deal-grid {
+  display: grid;
+  grid-template-columns: 60px 1fr 1fr;
+  gap: 3px 6px;
+  align-items: center;
+  font-size: 12px;
+}
+.deal-grid .input {
+  padding: 4px 6px;
+}

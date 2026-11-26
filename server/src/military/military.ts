@@ -129,6 +129,12 @@ export class Military {
     this.g.market.addNationImpact(attacker, s.aggressorCompanies, s.durationTicks, 'war aggressor');
     this.g.news.post('War Correspondent', `${A.name} DECLARES WAR on ${T.name}. Defence stocks jump, oil spikes.`, 'bad', true, [...T.companies.map((c) => c.id), 'OIL']);
     this.g.notify(T.playerId, 'bad', `${A.name} has declared war on you! They can invade in ${m.warMobilisationSec}s.`);
+    // Coalition: the target's allies are told, and their war cooldown is waived so they can join in.
+    for (const ally of this.g.alliesOf(target)) {
+      const al = w.nation(ally)!;
+      this.declareCooldown.delete(ally);
+      this.g.notify(al.playerId, 'warn', `Your ally ${T.name} was attacked by ${A.name}. Your war cooldown is waived if you want to join.`);
+    }
     return null;
   }
 

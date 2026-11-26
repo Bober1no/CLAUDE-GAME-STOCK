@@ -125,3 +125,84 @@ describe('game simulation', () => {
     expect(g.recap?.winnerId).toBeTruthy();
   });
 });
+
+describe('phase 4 systems', () => {
+  it('trade deals move resources both ways and defaults are punished', () => {
+    const { g, ps } = makeGame(2, 21);
+    const A = g.world.nationOf(ps[0].id)!;
+    const B = g.world.nationOf(ps[1].id)!;
+    A.resources.oil = 1000;
+    B.resources.food = 0;
+    expect(g.handle(ps[0].id, { type: 'proposeDeal', targetId: B.id, terms: { give: { oil: 60 }, receive: { cash: 600 }, durationSec: 60 } }).ok).toBe(true);
+    const deal = g.diplomacy.deals[0];
+    expect(g.handle(ps[1].id, { type: 'respondDeal', dealId: deal.id, accept: true }).ok).toBe(true);
+    const bOil = B.resources.oil;
+    const aCash = g.market.accounts.get(ps[0].id)!.cash;
+    run(g, T0, T0 + 10_000);
+    expect(B.resources.oil).toBeGreaterThan(bOil + 5);
+    expect(g.market.accounts.get(ps[0].id)!.cash).toBeGreaterThan(aCash + 50);
+    // B drains its cash → default
+    const bAcct = g.market.accounts.get(ps[1].id)!;
+    bAcct.cash = -5000;
+    const rep = B.reputation;
+    run(g, T0 + 10_000, T0 + 13_000);
+    expect(deal.status).toBe('broken');
+    expect(B.reputation).toBeLessThan(rep);
+  });
+
+  it('sanctions block buying the target and two of them make an embargo', () => {
+    const { g, ps } = makeGame(3, 22);
+    const [A, B, C] = ps.map((p) => g.world.nationOf(p.id)!);
+    expect(g.handle(ps[0].id, { type: 'sanction', targetId: C.id, on: true }).ok).toBe(true);
+    const cStock = C.companies[0].id;
+    expect(g.handle(ps[0].id, { type: 'order', assetId: cStock, side: 'buy', orderType: 'market', qty: 1 }).ok).toBe(false);
+    expect(g.handle(ps[0].id, { type: 'order', assetId: cStock, side: 'short', orderType: 'market', qty: 1 }).ok).toBe(true);
+    expect(g.isEmbargoed(C.id)).toBe(false);
+    g.handle(ps[1].id, { type: 'sanction', targetId: C.id, on: true });
+    expect(g.isEmbargoed(C.id)).toBe(true);
+    C.resources.oil = 100;
+    expect(g.handle(ps[2].id, { type: 'export', resource: 'oil', amount: 10 }).ok).toBe(false);
+    expect(g.handle(ps[2].id, { type: 'proposeDeal', targetId: A.id, terms: { give: { oil: 5 }, receive: {}, durationSec: 60 } }).ok).toBe(false);
+    void B;
+  });
+
+  it('alliances share vision and block war; private chat stays private', () => {
+    const { g, ps } = makeGame(3, 23);
+    const [A, B] = ps.map((p) => g.world.nationOf(p.id)!);
+    g.handle(ps[0].id, { type: 'proposeAlliance', targetId: B.id });
+    const pr = g.proposals.list[0];
+    expect(g.handle(ps[1].id, { type: 'respondProposal', proposalId: pr.id, accept: true }).ok).toBe(true);
+    expect(g.areAllied(A.id, B.id)).toBe(true);
+    expect(g.handle(ps[0].id, { type: 'declareWar', targetId: B.id }).ok).toBe(false);
+    const view = g.buildView(ps[0].id, T0);
+    expect(view.provinces[B.capital].visible).toBe(true);
+    // chat
+    g.handle(ps[0].id, { type: 'chat', text: 'secret plan', toId: ps[1].id });
+    g.clock = () => T0 + 2000;
+    g.handle(ps[0].id, { type: 'chat', text: 'hello all', toId: null });
+    expect(g.diplomacy.chatFor(ps[2].id).map((c) => c.text)).toEqual(['hello all']);
+    expect(g.diplomacy.chatFor(ps[1].id).map((c) => c.text)).toContain('secret plan');
+  });
+
+  it('world events fire over a session and move the market', () => {
+    const { g } = makeGame(4, 24);
+    run(g, T0, T0 + 30 * 60_000, 2000);
+    expect(g.events.fired.length).toBeGreaterThan(5);
+    const rumours = g.news.all().filter((n) => n.source === 'Rumour Mill').length;
+    expect(rumours).toBeGreaterThan(0);
+  });
+
+  it('leverage and limit orders work end to end', () => {
+    const { g, ps } = makeGame(2, 25);
+    const pid = ps[0].id;
+    expect(g.handle(pid, { type: 'order', assetId: 'GOLD', side: 'buy', orderType: 'market', qty: 10, leverage: 5 }).ok).toBe(true);
+    // a limit far below market won't fill and is cancelled after the tick
+    expect(g.handle(pid, { type: 'order', assetId: 'OIL', side: 'buy', orderType: 'limit', qty: 5, limitPrice: 50 }).ok).toBe(true);
+    run(g, T0, T0 + 21_000);
+    const acct = g.market.accounts.get(pid)!;
+    expect(acct.positions.get('GOLD')?.loan).toBeGreaterThan(0);
+    expect(acct.positions.has('OIL')).toBe(false);
+    expect(acct.orders.length).toBe(0);
+    expect(acct.reserved).toBe(0);
+  });
+});

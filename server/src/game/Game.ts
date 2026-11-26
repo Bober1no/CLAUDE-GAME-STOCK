@@ -27,6 +27,8 @@ import { World, type Nation, type WorldEvent } from '../world/world.js';
 import { RESOURCES, commodityFundamental, companyFundamental, nationAssetValue } from '../world/economy.js';
 import { Military } from '../military/military.js';
 import { Proposals } from '../diplomacy/proposals.js';
+import { Diplomacy } from '../diplomacy/diplomacy.js';
+import { WorldEvents } from '../events/worldEvents.js';
 
 export interface GamePlayer {
   id: string;
@@ -42,6 +44,10 @@ export class Game {
   readonly world: World;
   readonly military: Military;
   readonly proposals: Proposals;
+  readonly diplomacy: Diplomacy;
+  readonly events: WorldEvents;
+  /** Counters for the recap. */
+  stats = { tipsSent: 0, battles: 0 };
   readonly startedAt: number;
   readonly endsAt: number;
   nextMarketTickAt: number;
@@ -78,6 +84,8 @@ export class Game {
     this.supplyNow = this.world.commoditySupply(now);
     this.military = new Military(this);
     this.proposals = new Proposals(this);
+    this.diplomacy = new Diplomacy(this);
+    this.events = new WorldEvents(this);
 
     for (const c of CONFIG.commodities) {
       this.market.addAsset({ id: c.id, name: c.name, kind: 'commodity', basePrice: c.basePrice }, c.depth, c.volatility);
@@ -139,6 +147,7 @@ export class Game {
       history: this.market.history(),
     });
     this.emit.toPlayer(playerId, 'news:backlog', this.news.backlog());
+    this.emit.toPlayer(playerId, 'chat:backlog', this.diplomacy.chatFor(playerId));
     this.pushAccount(playerId);
     this.emit.toPlayer(playerId, 'game:view', this.buildView(playerId, this.clock()));
     if (this.recap) this.emit.toPlayer(playerId, 'game:ended', this.recap);
@@ -208,6 +217,8 @@ export class Game {
   protected subTick(dt: number, now: number): void {
     this.military.tick(dt, now);
     this.proposals.tick(now);
+    this.diplomacy.tick(now);
+    this.events.tick(now);
   }
 
   onWorldEvent(e: WorldEvent, now: number): void {
@@ -294,7 +305,9 @@ export class Game {
     for (const p of this.players) this.pushAccount(p.id);
   }
 
-  protected beforeMarketTick(_now: number): void {}
+  protected beforeMarketTick(now: number): void {
+    this.events.onMarketTick(now);
+  }
   protected afterMarketTick(_res: ReturnType<Market['tick']>, _now: number): void {}
 
   broadcastPressure(now: number): void {
@@ -367,20 +380,20 @@ export class Game {
   warCount(nationId: string): number {
     return this.military.enemiesOf(nationId).length;
   }
-  areAllied(_a: string, _b: string): boolean {
-    return false;
+  areAllied(a: string, b: string): boolean {
+    return this.diplomacy.allied(a, b);
   }
-  formAlliance(_a: string, _b: string, _now: number): string | null {
-    return 'Alliances are not available yet';
+  formAlliance(a: string, b: string, _now: number): string | null {
+    return this.diplomacy.formAlliance(a, b);
   }
-  sanctionCount(_nationId: string): number {
-    return 0;
+  sanctionCount(nationId: string): number {
+    return this.diplomacy.sanctionersOf(nationId).length;
   }
   armyStrength(nationId: string): number {
     return this.military.strengthOf(nationId);
   }
-  dealFlows(_nationId: string): Partial<Record<string, number>> {
-    return {};
+  dealFlows(nationId: string): Partial<Record<string, number>> {
+    return this.diplomacy.flows(nationId);
   }
   protected checkVictory(_now: number): void {}
 
@@ -393,8 +406,9 @@ export class Game {
     return this.military.visibleFor(n.id, this.sharedVisionNations(playerId, now), this.extraVisibleProvinces(playerId, now));
   }
   /** Nations whose vision this player shares (allies, spied nations). */
-  sharedVisionNations(_playerId: string, _now: number): string[] {
-    return [];
+  sharedVisionNations(playerId: string, now: number): string[] {
+    const n = this.world.nationOf(playerId)!;
+    return [...this.diplomacy.alliesOf(n.id), ...this.spyVisionOn(playerId, now)];
   }
   extraVisibleProvinces(_playerId: string, _now: number): number[] {
     return [];
@@ -486,20 +500,20 @@ export class Game {
   warsOf(nationId: string): string[] {
     return this.military.enemiesOf(nationId);
   }
-  alliesOf(_nationId: string): string[] {
-    return [];
+  alliesOf(nationId: string): string[] {
+    return this.diplomacy.alliesOf(nationId);
   }
-  sanctionersOf(_nationId: string): string[] {
-    return [];
+  sanctionersOf(nationId: string): string[] {
+    return this.diplomacy.sanctionersOf(nationId);
   }
-  isEmbargoed(_nationId: string): boolean {
-    return false;
+  isEmbargoed(nationId: string): boolean {
+    return this.diplomacy.embargoed(nationId);
   }
   warViews(): WorldView['wars'] {
     return this.military.warViews();
   }
-  dealViews(_nationId: string): WorldView['deals'] {
-    return [];
+  dealViews(nationId: string): WorldView['deals'] {
+    return this.diplomacy.dealViews(nationId);
   }
   proposalViews(nationId: string): WorldView['proposals'] {
     return this.proposals.viewsFor(nationId);
@@ -535,7 +549,7 @@ export class Game {
         const r = this.market.placeOrder(playerId, a, now, {
           leverageEnabled: this.features.leverage,
           limitEnabled: this.features.limit,
-          blocked: (assetId) => this.orderBlocked(playerId, assetId),
+          blocked: (assetId) => this.orderBlocked(playerId, assetId, a.side),
         });
         if (r.ok) this.pushAccount(playerId);
         return { ok: r.ok, error: r.error };
@@ -574,9 +588,14 @@ export class Game {
     }
   }
 
-  features = { leverage: false, limit: false };
+  features = { leverage: true, limit: true };
 
-  protected orderBlocked(_playerId: string, _assetId: string): string | null {
+  /** Sanctions: you can't buy (go long on) stock of a nation you sanction. Shorting is fine. */
+  protected orderBlocked(playerId: string, assetId: string, side: string): string | null {
+    const a = this.market.assets.get(assetId);
+    const me = this.world.nationOf(playerId);
+    if (!a?.info.nationId || !me || side !== 'buy') return null;
+    if (this.diplomacy.sanctioning(me.id, a.info.nationId)) return 'You are sanctioning that nation — you cannot buy its stocks';
     return null;
   }
 
@@ -603,7 +622,33 @@ export class Game {
     }
   }
 
-  protected handleExtra(_playerId: string, _n: Nation, _a: Action, _now: number): Ack {
+  protected handleExtra(playerId: string, n: Nation, a: Action, now: number): Ack {
+    const res = (err: string | null): Ack => (err ? { ok: false, error: err } : { ok: true });
+    const d = this.diplomacy;
+    switch (a.type) {
+      case 'chat':
+        return res(d.sendChat(playerId, a.text, a.toId, now));
+      case 'proposeDeal':
+        return res(d.proposeDeal(n.id, a.targetId, a.terms, now));
+      case 'respondDeal':
+        return res(d.respondDeal(n.id, a.dealId, a.accept, now));
+      case 'breakDeal':
+        return res(d.breakDeal(n.id, a.dealId));
+      case 'proposeAlliance': {
+        if (d.allied(n.id, a.targetId)) return { ok: false, error: 'Already allied' };
+        if (this.military.atWar(n.id, a.targetId)) return { ok: false, error: 'You are at war with them' };
+        return res(this.proposals.propose('alliance', n.id, a.targetId, now));
+      }
+      case 'breakAlliance':
+        return res(d.breakAlliance(n.id, a.targetId));
+      case 'sanction':
+        return res(d.setSanction(n.id, a.targetId, a.on, now));
+      default:
+        return this.handleSpy(playerId, n, a, now);
+    }
+  }
+
+  protected handleSpy(_playerId: string, _n: Nation, _a: Action, _now: number): Ack {
     return { ok: false, error: 'Not available yet' };
   }
 
