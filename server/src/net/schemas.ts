@@ -7,7 +7,7 @@ import { CONFIG } from '@warmarket/shared';
 
 const id = z.string().min(1).max(64);
 const finiteNum = z.number().finite();
-const sector = z.enum(['energy', 'defence', 'tech', 'shipping', 'food', 'pharma']);
+const sector = z.enum(['energy', 'tech', 'food', 'defence']);
 
 const cleanText = (max: number) =>
   z
@@ -49,11 +49,10 @@ export const actionSchema = z.discriminatedUnion('type', [
     leverage: z.number().int().min(1).max(CONFIG.market.maxLeverage).optional(),
   }).strict(),
   z.object({ type: z.literal('cancelOrder'), orderId: id }).strict(),
-  z.object({ type: z.literal('corporate'), action: z.enum(['rnd', 'marketing', 'buyback', 'issue', 'dividend', 'fraud']), amount: finiteNum.positive().max(1e7).optional() }).strict(),
+  z.object({ type: z.literal('corporate'), action: z.enum(['rnd', 'marketing', 'dividend', 'fraud']), amount: finiteNum.positive().max(1e7).optional() }).strict(),
   z.object({ type: z.literal('story'), assetId: id, positive: z.boolean() }).strict(),
   z.object({ type: z.literal('lobby'), assetId: id, up: z.boolean() }).strict(),
   z.object({ type: z.literal('spy'), targetId: id }).strict(),
-  z.object({ type: z.literal('research') }).strict(),
   z.object({ type: z.literal('chat'), text: z.string().min(1).max(CONFIG.chat.maxLength), toId: id.nullable() }).strict(),
   z.object({ type: z.literal('publish'), headline: z.string().min(5).max(120) }).strict(),
 ]);

@@ -37,25 +37,26 @@ back in your seat automatically (the code and a seat token are kept in localStor
 
 ## How to play
 
+* **What's on the exchange:** 4 commodities (oil, gold, wheat, lithium), 3 computer-run
+  companies, every player's company, and WarDoge. Each sector is tied to one commodity:
+  energy↔oil, tech↔lithium, food↔wheat, defence↔gold.
 * **Lobby:** pick your name, your company's name and its sector. The host picks the session length
   and whether secret roles are on, then rings the opening bell.
 * **You start with** $10,000 cash and 150 founder shares of your own company at $40. Your stock
   is a big chunk of your net worth, so rivals will try to wreck it.
 * **The market** clears every 20 seconds as a batch auction: everyone's orders fill together at
-  one price. Buy, sell, short, cover, limit orders, 1–5x leverage (with margin calls).
+  one price. Buy, sell, short, cover. Limit orders and 1–5x leverage (with margin calls) are
+  under **Advanced** on the order ticket.
 * **Company tab (CEO actions):**
   * R&D: slow, durable value (80% chance it pays off).
   * Marketing: quick hype that fades.
-  * Buyback: price and value up a little.
   * Dividend: pays every holder, and shorts have to pay it too, so it's a weapon against people
     shorting you.
-  * Issue shares: instant cash, but dilution.
   * Cook the books: a big fake pump until the regulator catches it.
 * **Influence tab:**
   * Plant a pump or smear story about any stock or commodity (it may get traced back to you).
   * Lobby the government to push a commodity.
   * Plant a mole to see a rival's queued orders.
-  * Buy research to see the live order book.
 * **Chaos:**
   * World events (droughts, hurricanes, pandemics, earnings, scandals, rate changes…) get bigger
     as the session goes on.

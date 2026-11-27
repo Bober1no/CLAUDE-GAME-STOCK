@@ -7,7 +7,7 @@ const ctx: EventContext = {
   intensity: 1,
   companies: [
     { id: 'HOTA', name: 'Hot Air Petroleum', sector: 'energy', ownerId: null },
-    { id: 'PLCB', name: 'Placebo Pharma', sector: 'pharma', ownerId: null },
+    { id: 'SNAK', name: 'Big Snack Foods', sector: 'food', ownerId: null },
     { id: 'ALIC', name: 'Alice Corp', sector: 'tech', ownerId: 'p0' },
     { id: 'BOOM', name: 'Boom Industries', sector: 'defence', ownerId: null },
   ],
@@ -40,8 +40,8 @@ describe('event scheduler', () => {
   });
 
   it('impacts scale with intensity', () => {
-    const lo = rollEvent(new Rng(9), { ...ctx, intensity: 1 }, 'blight')!;
-    const hi = rollEvent(new Rng(9), { ...ctx, intensity: 2 }, 'blight')!;
+    const lo = rollEvent(new Rng(9), { ...ctx, intensity: 1 }, 'drought')!;
+    const hi = rollEvent(new Rng(9), { ...ctx, intensity: 2 }, 'drought')!;
     expect(Math.abs(hi.impacts[0].pct)).toBeCloseTo(Math.abs(lo.impacts[0].pct) * 2);
   });
 

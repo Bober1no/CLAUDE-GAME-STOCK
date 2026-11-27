@@ -7,8 +7,6 @@
  *
  *   R&D        cost now, +health after a delay              (slow, durable)
  *   Marketing  cost now, +hype now, small hangover later     (fast, fades)
- *   Buyback    spend X: buy pressure now, +health a little
- *   Issue      +cash now, dilution: −price, −health
  *   Dividend   pay X pro rata to every holder (shorts pay it), +hype, +health
  *   Fraud      big hidden pump; every tick the regulator may find out → crash + fine
  */
@@ -20,7 +18,6 @@ export interface CompanyState {
   ownerId: string;
   health: number;
   dividendsPaid: number;
-  sharesIssued: number;
   fraud: { startedTick: number } | null;
   frauds: number;
 }
@@ -42,7 +39,7 @@ export class Corporate {
   constructor(private g: Game) {}
 
   add(ownerId: string, assetId: string): void {
-    const c: CompanyState = { assetId, ownerId, health: 1, dividendsPaid: 0, sharesIssued: 0, fraud: null, frauds: 0 };
+    const c: CompanyState = { assetId, ownerId, health: 1, dividendsPaid: 0, fraud: null, frauds: 0 };
     this.companies.set(assetId, c);
     this.byOwner.set(ownerId, c);
   }
@@ -89,23 +86,6 @@ export class Corporate {
         m.addImpact(c.assetId, k.marketing.hype, k.marketing.ticks, 'marketing');
         this.delayed.push({ atTick: tick + k.marketing.ticks + 2, assetId: c.assetId, impact: { pct: k.marketing.hangover, ticks: 1 } });
         news(`${name} launches a ${this.g.rng.pick(['Super Bowl ad', 'celebrity collab', 'viral TikTok campaign', 'billboard on the moon'])}.`, 'good');
-        break;
-      }
-      case 'buyback': {
-        const amt = Math.floor(amount ?? 0);
-        if (amt < k.buyback.minAmount || amt > k.buyback.maxAmount) return `Buyback must be $${k.buyback.minAmount}–$${k.buyback.maxAmount}`;
-        if (!m.spend(playerId, amt)) return 'Not enough free cash';
-        m.addImpact(c.assetId, (k.buyback.impactPerDepth * amt) / a.depth, 1, 'buyback');
-        this.bumpHealth(c, (k.buyback.healthPer1000 * amt) / 1000);
-        news(`${name} announces a $${amt.toLocaleString('en-US')} share buyback.`, 'good');
-        break;
-      }
-      case 'issue': {
-        m.credit(playerId, k.issue.cash);
-        m.addImpact(c.assetId, k.issue.impact, 1, 'dilution');
-        this.bumpHealth(c, -k.issue.healthLoss);
-        c.sharesIssued++;
-        news(`${name} issues new shares to raise $${k.issue.cash.toLocaleString('en-US')}. Existing holders diluted.`, 'bad');
         break;
       }
       case 'dividend': {

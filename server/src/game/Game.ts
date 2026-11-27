@@ -305,7 +305,7 @@ export class Game {
     for (const [id, v] of Object.entries(delayed)) fuzzy[id] = Math.round(Math.max(-1, Math.min(1, v + this.rng.normal() * 0.15)) * 10) / 10;
     for (const p of this.players) {
       const analyst = this.roles.get(p.id) === 'analyst';
-      if (analyst || this.influence.researchUntil(p.id) > now) {
+      if (analyst) {
         const live = this.market.delayedPressure(now + 10_000, 0);
         const noise = analyst ? CONFIG.roles.analystNoise : 0;
         const bars: Record<string, number> = {};
@@ -341,7 +341,6 @@ export class Game {
         health: Math.round(c.health * 100) / 100,
         fraudActive: !!c.fraud,
         cooldowns: { ...this.corporate.cooldownsOf(playerId), ...this.influence.cooldownsOf(playerId) },
-        researchUntil: this.influence.researchUntil(playerId),
         spying: this.influence.spyingOn(playerId, now),
         reputation: Math.round(this.reputation.get(playerId) ?? 100),
         role: this.roles.get(playerId) ?? 'none',
@@ -352,7 +351,7 @@ export class Game {
         .filter((a) => a.info.kind === 'company')
         .map((a) => {
           const cs = this.corporate.companies.get(a.info.id);
-          return { assetId: a.info.id, ownerId: a.info.ownerId ?? null, name: a.info.name, sector: a.info.sector!, dividendsPaid: cs?.dividendsPaid ?? 0, sharesIssued: cs?.sharesIssued ?? 0 };
+          return { assetId: a.info.id, ownerId: a.info.ownerId ?? null, name: a.info.name, sector: a.info.sector!, dividendsPaid: cs?.dividendsPaid ?? 0 };
         }),
       spiedOrders: this.influence.spyingOn(playerId, now).map((s) => ({
         playerId: s.playerId,
@@ -414,8 +413,6 @@ export class Game {
         return res(this.influence.lobby(playerId, a.assetId, a.up, now), true);
       case 'spy':
         return res(this.influence.spy(playerId, a.targetId, now), true);
-      case 'research':
-        return res(this.influence.buyResearch(playerId, now), true);
       case 'chat':
         return res(this.chat.send(playerId, a.text, a.toId, now));
       case 'publish':

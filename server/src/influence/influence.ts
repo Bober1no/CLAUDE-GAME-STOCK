@@ -3,7 +3,6 @@
  *   story    — plant a pump or smear story about any company or commodity (may get traced)
  *   lobby    — lobby the government to push a commodity up or down for a few ticks
  *   spy      — read a rival's trading desk (their queued orders) for a while
- *   research — buy a subscription to the live, exact order book
  *   publish  — journalist role only: free headlines with no direct price effect
  */
 import { CONFIG, type InfluenceAction } from '@warmarket/shared';
@@ -26,7 +25,6 @@ const COMMODITY_SMEAR = ['{n} glut: warehouses overflowing', 'Demand for {n} col
 
 export class Influence {
   private cooldowns = new Map<string, Partial<Record<InfluenceAction, number>>>();
-  private research = new Map<string, number>();
   /** spier → target → until */
   private spying = new Map<string, Map<string, number>>();
   private journalistReady = new Map<string, number>();
@@ -36,9 +34,6 @@ export class Influence {
 
   cooldownsOf(playerId: string): Partial<Record<InfluenceAction, number>> {
     return this.cooldowns.get(playerId) ?? {};
-  }
-  researchUntil(playerId: string): number {
-    return this.research.get(playerId) ?? 0;
   }
   spyingOn(playerId: string, now: number): { playerId: string; until: number }[] {
     return [...(this.spying.get(playerId) ?? [])].filter(([, u]) => u > now).map(([pid, until]) => ({ playerId: pid, until }));
@@ -120,13 +115,6 @@ export class Influence {
     inner.set(targetId, now + s.durationSec * 1000);
     this.spying.set(playerId, inner);
     g.notify(playerId, 'good', `You can see ${them.name}'s queued orders for ${s.durationSec}s (Influence tab)`);
-    return null;
-  }
-
-  buyResearch(playerId: string, now: number): string | null {
-    const err = this.gate(playerId, 'research', CONFIG.influence.research.cost, now);
-    if (err) return err;
-    this.research.set(playerId, Math.max(now, this.researchUntil(playerId)) + CONFIG.influence.research.durationSec * 1000);
     return null;
   }
 

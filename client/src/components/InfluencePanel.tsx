@@ -112,16 +112,6 @@ export function InfluencePanel() {
         </div>
       </div>
 
-      <div className="inf-block">
-        <div className="inf-h">
-          <b>Research subscription</b> <span className="faint">{fmtMoney(I.research.cost)}</span>
-        </div>
-        <div className="faint inf-d">See the live, exact order book for {I.research.durationSec}s instead of the fuzzy delayed bars.</div>
-        <button className="btn sm" disabled={cd('research') > 0} onClick={() => act({ type: 'research' })}>
-          {me.researchUntil > now ? `Active ${Math.ceil((me.researchUntil - now) / 1000)}s — extend` : 'Subscribe'}
-        </button>
-      </div>
-
       {me.role === 'journalist' && (
         <div className="inf-block">
           <div className="inf-h">

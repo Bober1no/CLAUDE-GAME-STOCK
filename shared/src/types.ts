@@ -146,7 +146,7 @@ export interface MarketHistoryPayload {
 /** Fuzzy, delayed BUY/SELL pressure, -1 (all sell) .. +1 (all buy). */
 export interface PressurePayload {
   bars: Record<string, number>;
-  /** True if this player is seeing the real, undelayed book (research / analyst). */
+  /** True if this player is seeing the real, undelayed book (analyst role). */
   exact: boolean;
 }
 
@@ -154,8 +154,8 @@ export interface PressurePayload {
 // Player view (per-player filtered)
 // =====================================================================================
 
-export type CorporateAction = 'rnd' | 'marketing' | 'buyback' | 'issue' | 'dividend' | 'fraud';
-export type InfluenceAction = 'story' | 'lobby' | 'spy' | 'research';
+export type CorporateAction = 'rnd' | 'marketing' | 'dividend' | 'fraud';
+export type InfluenceAction = 'story' | 'lobby' | 'spy';
 
 export interface MyView {
   /** Your company's ticker. */
@@ -166,7 +166,6 @@ export interface MyView {
   fraudActive: boolean;
   /** action → time it's available again */
   cooldowns: Partial<Record<CorporateAction | InfluenceAction, number>>;
-  researchUntil: number;
   /** Rivals whose trading desk you're reading, and until when. */
   spying: { playerId: string; until: number }[];
   reputation: number;
@@ -183,7 +182,6 @@ export interface CompanyPublic {
   sector: Sector;
   /** Public corporate history for this company (counts only — the details are in the news). */
   dividendsPaid: number;
-  sharesIssued: number;
 }
 
 export interface LeaderboardRow {
@@ -286,7 +284,6 @@ export type Action =
   | { type: 'story'; assetId: string; positive: boolean }
   | { type: 'lobby'; assetId: string; up: boolean }
   | { type: 'spy'; targetId: string }
-  | { type: 'research' }
   | { type: 'chat'; text: string; toId: string | null }
   | { type: 'publish'; headline: string };
 

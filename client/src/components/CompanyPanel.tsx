@@ -10,9 +10,7 @@ const K = CONFIG.corporate;
 const ACTIONS: { id: CorporateAction; cost: string; desc: string; amount?: boolean; danger?: boolean }[] = [
   { id: 'rnd', cost: fmtMoney(K.rnd.cost), desc: `Raises long-term value in ~${K.rnd.delayTicks} clears (80% chance it pays off).` },
   { id: 'marketing', cost: fmtMoney(K.marketing.cost), desc: `+${Math.round(K.marketing.hype * 100)}% hype now, small hangover later.` },
-  { id: 'buyback', cost: 'you choose', desc: 'Your cash buys your own stock: price up, value up a little.', amount: true },
   { id: 'dividend', cost: 'you choose', desc: 'Pay every holder pro rata. People shorting you have to pay it.', amount: true },
-  { id: 'issue', cost: `+${fmtMoney(K.issue.cash)}`, desc: `Instant cash, but dilution: price ${Math.round(K.issue.impact * 100)}%, value down.` },
   { id: 'fraud', cost: 'free…', desc: `+${Math.round(K.fraud.hype * 100)}% fake pump. Each clear, ~${Math.round(K.fraud.discoverChancePerTick * 100)}% chance the regulator finds out: crash, ${fmtMoney(K.fraud.fineFlat)} fine.`, danger: true },
 ];
 
@@ -94,7 +92,6 @@ export function CompanyPanel() {
               disabled={waiting}
               onClick={() => {
                 if (a.id === 'fraud' && !confirm('Cook the books? If the regulator finds out, your stock crashes and you get fined.')) return;
-                if (a.id === 'issue' && !confirm('Issue new shares? You get cash, but your stock (and your stake) drops.')) return;
                 act({ type: 'corporate', action: a.id, amount: a.amount ? Number(amount[a.id]) || 0 : undefined });
               }}
             >
@@ -105,7 +102,7 @@ export function CompanyPanel() {
       })}
       <div className="faint" style={{ fontSize: 10.5, marginTop: 6 }}>
         Your stock is part of your net worth, so rivals will short it and smear it. Paying dividends makes shorting you expensive.
-        {pub && (pub.dividendsPaid > 0 || pub.sharesIssued > 0) && ` So far: ${pub.dividendsPaid} dividend(s), ${pub.sharesIssued} share issue(s).`}
+        {pub && pub.dividendsPaid > 0 && ` So far: ${pub.dividendsPaid} dividend(s).`}
       </div>
     </div>
   );

@@ -20,6 +20,7 @@ export function OrderTicket() {
   const [limit, setLimit] = useState('');
   const [lev, setLev] = useState(1);
   const [busy, setBusy] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
 
   const pos = account?.positions.find((p) => p.assetId === assetId);
   const held = pos?.qty ?? 0;
@@ -36,7 +37,7 @@ export function OrderTicket() {
   const price = quote.price;
   const free = account.cash - account.reserved;
   const opening = side === 'buy' || side === 'short';
-  const L = opening ? lev : 1;
+  const L = opening && advanced ? lev : 1;
   const maxQty = opening ? Math.max(0, Math.floor((free * L) / (price * (1 + CONFIG.market.reserveBuffer)))) : Math.abs(held);
   const n = Math.floor(Number(qty) || 0);
   const notional = n * price;
@@ -49,9 +50,9 @@ export function OrderTicket() {
       type: 'order',
       assetId,
       side,
-      orderType: type,
+      orderType: advanced ? type : 'market',
       qty: n,
-      limitPrice: type === 'limit' ? Number(limit) : undefined,
+      limitPrice: advanced && type === 'limit' ? Number(limit) : undefined,
       leverage: L,
     });
     setBusy(false);
@@ -69,6 +70,9 @@ export function OrderTicket() {
         <span className="faint" style={{ letterSpacing: 0 }}>
           held: <span className={held > 0 ? 'up' : held < 0 ? 'down' : ''}>{held}</span>
         </span>
+        <button className={`btn sm ${advanced ? 'primary' : 'ghost'}`} style={{ padding: '1px 6px', fontSize: 10 }} onClick={() => setAdvanced(!advanced)} title="Limit orders and leverage">
+          Advanced
+        </button>
       </div>
       <div className="ticket">
         <div className="side-row">
@@ -78,65 +82,53 @@ export function OrderTicket() {
             </button>
           ))}
         </div>
-        <div className="ticket-row">
-          <div>
-            <label className="label">Quantity</label>
-            <input className="input num" inputMode="numeric" value={qty} placeholder="0" onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ''))} onKeyDown={(e) => e.key === 'Enter' && submit()} />
-            <div className="qty-quick">
-              {[0.1, 0.25, 0.5, 1].map((f) => (
-                <button key={f} className="btn sm ghost" onClick={() => setQty(String(Math.floor(maxQty * f)))}>
-                  {f === 1 ? 'MAX' : `${f * 100}%`}
-                </button>
-              ))}
-            </div>
+        <div>
+          <input className="input num qty-big" inputMode="numeric" value={qty} placeholder="Quantity" onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ''))} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+          <div className="qty-quick">
+            {[0.1, 0.25, 0.5, 1].map((f) => (
+              <button key={f} className="btn sm ghost" onClick={() => setQty(String(Math.floor(maxQty * f)))}>
+                {f === 1 ? 'MAX' : `${f * 100}%`}
+              </button>
+            ))}
           </div>
-          <div>
-            <label className="label">Type</label>
-            <select className="input" value={type} onChange={(e) => setType(e.target.value as OrderType)}>
-              <option value="market">Market (next clear)</option>
-              <option value="limit">Limit (this clear only)</option>
-            </select>
+        </div>
+        {advanced && (
+          <div className="ticket-row">
+            <div>
+              <label className="label">Type</label>
+              <select className="input" value={type} onChange={(e) => setType(e.target.value as OrderType)}>
+                <option value="market">Market</option>
+                <option value="limit">Limit</option>
+              </select>
+              {type === 'limit' && (
+                <input className="input num" style={{ marginTop: 4 }} value={limit} placeholder={`${side === 'buy' || side === 'cover' ? 'max' : 'min'} ${fmtPrice(price)}`} onChange={(e) => setLimit(e.target.value.replace(/[^0-9.]/g, ''))} />
+              )}
+            </div>
             {opening && (
-              <div className="qty-quick">
-                {CONFIG.market.leverageOptions.map((l) => (
-                  <button key={l} className={`btn sm ${lev === l ? 'primary' : 'ghost'}`} onClick={() => setLev(l)} title={l > 1 ? 'Leverage: bigger position, margin call if it goes wrong' : 'No leverage'}>
-                    {l}x
-                  </button>
-                ))}
+              <div>
+                <label className="label">Leverage</label>
+                <div className="qty-quick" style={{ marginTop: 0 }}>
+                  {CONFIG.market.leverageOptions.map((l) => (
+                    <button key={l} className={`btn sm ${lev === l ? 'primary' : 'ghost'}`} onClick={() => setLev(l)} title={l > 1 ? 'Bigger position, margin call if it goes wrong' : 'No leverage'}>
+                      {l}x
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
-        </div>
-        {type === 'limit' && (
-          <div>
-            <label className="label">Limit price {side === 'buy' || side === 'cover' ? '(max you pay)' : '(min you receive)'}</label>
-            <input className="input num" value={limit} placeholder={fmtPrice(price)} onChange={(e) => setLimit(e.target.value.replace(/[^0-9.]/g, ''))} />
-          </div>
         )}
         <div className="est">
-          <span>Notional</span>
-          <span>{fmtMoney(notional)}</span>
-        </div>
-        {opening && L > 1 && (
-          <div className="est">
-            <span>Your margin ({L}x)</span>
-            <span>{fmtMoney(notional / L)}</span>
-          </div>
-        )}
-        <div className="est">
-          <span>Est. slippage</span>
-          <span>~{(estSlip * 100).toFixed(1)}%</span>
-        </div>
-        <div className="est">
-          <span>Free cash</span>
-          <span>{fmtMoney(free)}</span>
+          <span>
+            {fmtMoney(opening && L > 1 ? notional / L : notional)}
+            {opening && L > 1 ? ` margin (${L}x)` : ''}
+            {estSlip >= 0.005 ? ` · ~${(estSlip * 100).toFixed(1)}% slippage` : ''}
+          </span>
+          <span>free {fmtMoney(free)}</span>
         </div>
         <button className={`btn submit ${side === 'buy' || side === 'cover' ? 'buy on' : 'sell on'}`} disabled={busy || n <= 0} onClick={submit}>
           {side.toUpperCase()} {n || ''} {assetId}
         </button>
-        <div className="faint" style={{ fontSize: 10.5 }}>
-          Orders queue and all clear together at the next tick. Price moves ±{CONFIG.market.priceCap * 100}% max per tick.
-        </div>
       </div>
     </div>
   );

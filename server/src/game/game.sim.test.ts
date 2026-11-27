@@ -8,10 +8,10 @@ import { Game, makeTicker } from './Game.js';
 import { nullEmitter } from '../net/emitter.js';
 
 const T0 = 1_700_000_000_000;
-const SECTORS: Sector[] = ['tech', 'energy', 'food', 'pharma', 'shipping', 'defence'];
+const SECTORS: Sector[] = ['tech', 'energy', 'food', 'defence'];
 
 function makeGame(players = 2, seed = 42, rolesEnabled = false) {
-  const ps = Array.from({ length: players }, (_, i) => ({ id: `p${i}`, name: `P${i}`, color: '#fff', companyName: `Player ${i} Holdings`, sector: SECTORS[i % 6] }));
+  const ps = Array.from({ length: players }, (_, i) => ({ id: `p${i}`, name: `P${i}`, color: '#fff', companyName: `Player ${i} Holdings`, sector: SECTORS[i % 4] }));
   const g = new Game('TEST1', ps, { sessionMinutes: 30, rolesEnabled }, nullEmitter, () => {}, seed, T0);
   g.clock = () => T0;
   return { g, ps };
@@ -85,15 +85,6 @@ describe('running your company', () => {
     expect(g.corporate.of(pid)!.health).not.toBe(before);
   });
 
-  it('issuing shares gives cash and dilutes', () => {
-    const { g, ps } = makeGame();
-    const pid = ps[0].id;
-    const cash = g.market.accounts.get(pid)!.cash;
-    expect(g.handle(pid, { type: 'corporate', action: 'issue' }).ok).toBe(true);
-    expect(g.market.accounts.get(pid)!.cash).toBe(cash + CONFIG.corporate.issue.cash);
-    expect(g.corporate.of(pid)!.health).toBeLessThan(1);
-  });
-
   it('dividends pay longs pro rata and charge shorts', () => {
     const { g, ps } = makeGame(3);
     const [a, b, c] = ps.map((p) => p.id);
@@ -131,20 +122,20 @@ describe('influence', () => {
     const { g, ps } = makeGame(2, 3);
     const pid = ps[0].id;
     const cash = g.market.accounts.get(pid)!.cash;
-    expect(g.handle(pid, { type: 'story', assetId: 'BOOM', positive: false }).ok).toBe(true);
+    expect(g.handle(pid, { type: 'story', assetId: 'HOTA', positive: false }).ok).toBe(true);
     expect(g.market.accounts.get(pid)!.cash).toBeLessThan(cash);
-    expect(g.news.all().some((n) => n.tickers?.includes('BOOM'))).toBe(true);
+    expect(g.news.all().some((n) => n.tickers?.includes('HOTA'))).toBe(true);
     expect(g.handle(pid, { type: 'story', assetId: CONFIG.memecoin.id, positive: true }).ok).toBe(false);
   });
 
   it('lobbying only works on commodities', () => {
     const { g, ps } = makeGame();
-    expect(g.handle(ps[0].id, { type: 'lobby', assetId: 'BOOM', up: true }).ok).toBe(false);
+    expect(g.handle(ps[0].id, { type: 'lobby', assetId: 'HOTA', up: true }).ok).toBe(false);
     expect(g.handle(ps[0].id, { type: 'lobby', assetId: 'WHEAT', up: true }).ok).toBe(true);
     expect(g.market.impacts.some((i) => i.assetId === 'WHEAT')).toBe(true);
   });
 
-  it('spying reveals a rival’s queued orders, research reveals the live book', () => {
+  it('spying reveals a rival’s queued orders', () => {
     const { g, ps } = makeGame(2, 5);
     const [a, b] = ps.map((p) => p.id);
     g.handle(b, { type: 'order', assetId: 'OIL', side: 'buy', orderType: 'market', qty: 3 });
@@ -159,8 +150,6 @@ describe('influence', () => {
       expect(g.buildView(a, t).spiedOrders[0].orders.length).toBe(1);
     }
     expect(g.handle(a, { type: 'spy', targetId: a }).ok).toBe(false);
-    expect(g.handle(a, { type: 'research' }).ok).toBe(true);
-    expect(g.influence.researchUntil(a)).toBeGreaterThan(t);
   });
 
   it('private chat stays private', () => {

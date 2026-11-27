@@ -3,7 +3,7 @@ import { CONFIG, GAME_VERSION } from '@warmarket/shared';
 import { createRoom, joinRoom } from '../net/socket';
 import { setState, useStore } from '../state/store';
 
-const TAPE = 'OIL 80.00 ▲2.1%   GOLD 1900 ▼0.4%   WHEAT 7.00 ▲0.8%   LITHIUM 24.00 ▲5.2%   DOGE2 1.0000 ▼31.0%   ELEC 140.0 ▲1.3%   COFFEE 2.40 ▼1.9%   ';
+const TAPE = 'OIL 80.00 ▲2.1%   GOLD 1900 ▼0.4%   WHEAT 7.00 ▲0.8%   LITHIUM 24.00 ▲5.2%   DOGE2 1.0000 ▼31.0%   HOTA 62.00 ▲1.3%   VAPR 115.0 ▼1.9%   ';
 
 export function Home() {
   const fatal = useStore((s) => s.fatal);

@@ -32,12 +32,14 @@ export function GameScreen() {
         </div>
         <div className="col">
           <PriceChart />
-          <OrderTicket />
+          <div className="trade-row">
+            <OrderTicket />
+            <Portfolio />
+          </div>
         </div>
         <div className="col">
           <Leaderboard />
-          <Portfolio />
-          <div className="panel" style={{ flex: 1.4 }}>
+          <div className="panel" style={{ flex: 1 }}>
             <div className="tabs">
               <button className={`tab ${side === 'company' ? 'on' : ''}`} onClick={() => setSide('company')}>
                 Company

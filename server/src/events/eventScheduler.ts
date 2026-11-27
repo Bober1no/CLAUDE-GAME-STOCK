@@ -79,19 +79,15 @@ const GENERATORS: Record<string, Gen> = {
     const k = c.intensity;
     return base({
       kind: 'drought',
-      headline: `Severe drought scorches ${where}. Grain futures soar.`,
+      headline: `Severe drought scorches ${where}. Wheat futures soar.`,
       teaser: `a drought in ${where}`,
       tone: 'bad',
       breaking: true,
       impacts: [
-        { assetId: 'WHEAT', pct: 0.1 * k, ticks: 2 },
-        { assetId: 'RICE', pct: 0.07 * k, ticks: 2 },
-        { sector: 'food', pct: -0.04 * k, ticks: 2 },
+        { assetId: 'WHEAT', pct: 0.12 * k, ticks: 2 },
+        { sector: 'food', pct: -0.05 * k, ticks: 2 },
       ],
-      shifts: [
-        { assetId: 'WHEAT', mult: 1 + 0.1 * k },
-        { assetId: 'RICE', mult: 1 + 0.06 * k },
-      ],
+      shifts: [{ assetId: 'WHEAT', mult: 1 + 0.1 * k }],
       hint: { assetId: 'WHEAT', up: true },
     });
   },
@@ -100,40 +96,36 @@ const GENERATORS: Record<string, Gen> = {
     const k = c.intensity;
     return base({
       kind: 'hurricane',
-      headline: `Category ${rng.int(3, 5)} hurricane slams into ${where}. Ports shut, refineries offline.`,
+      headline: `Category ${rng.int(3, 5)} hurricane slams into ${where}. Refineries offline, oil spikes.`,
       teaser: `a hurricane heading for ${where}`,
       tone: 'bad',
       breaking: true,
       impacts: [
-        { sector: 'shipping', pct: -0.1 * k, ticks: 2 },
-        { assetId: 'OIL', pct: 0.06 * k, ticks: 2 },
-        { assetId: 'LUMBER', pct: 0.05 * k, ticks: 1 },
+        { assetId: 'OIL', pct: 0.08 * k, ticks: 2 },
+        { sector: 'energy', pct: 0.03 * k, ticks: 1 },
+        { sector: 'food', pct: -0.04 * k, ticks: 1 },
       ],
-      shifts: [
-        { assetId: 'OIL', mult: 1 + 0.05 * k },
-        { sector: 'shipping', mult: 1 - 0.06 * k },
-      ],
+      shifts: [{ assetId: 'OIL', mult: 1 + 0.06 * k }],
       hint: { assetId: 'OIL', up: true },
     });
   },
   pandemic(rng, c) {
     const k = c.intensity;
     const name = rng.pick(['Hiccup Flu', 'Variant Omega', 'Office Cough', 'Bat-Adjacent Fever', 'The Sniffles 2']);
-    const pharma = c.companies.find((x) => x.sector === 'pharma');
     return base({
       kind: 'pandemic',
-      headline: `WHO declares ${name} a pandemic. Lockdowns spread; pharma rallies, everything else wobbles.`,
+      headline: `WHO declares ${name} a pandemic. Everyone works from home: tech rallies, oil and stocks wobble.`,
       teaser: 'a fast-spreading virus',
       tone: 'bad',
       breaking: true,
       impacts: [
-        { sector: 'pharma', pct: 0.16 * k, ticks: 2 },
-        { allCompanies: true, pct: -0.05 * k, ticks: 2 },
-        { assetId: 'OIL', pct: -0.07 * k, ticks: 2 },
-        { assetId: 'GOLD', pct: 0.04 * k, ticks: 1 },
+        { allCompanies: true, pct: -0.06 * k, ticks: 2 },
+        { sector: 'tech', pct: 0.1 * k, ticks: 2 },
+        { assetId: 'OIL', pct: -0.08 * k, ticks: 2 },
+        { assetId: 'GOLD', pct: 0.05 * k, ticks: 1 },
       ],
-      shifts: [{ sector: 'pharma', mult: 1 + 0.12 * k }],
-      hint: { assetId: pharma?.id ?? 'GOLD', up: true },
+      shifts: [{ sector: 'tech', mult: 1 + 0.06 * k }],
+      hint: { assetId: 'GOLD', up: true },
     });
   },
   breakthrough(rng, c) {
@@ -225,22 +217,9 @@ const GENERATORS: Record<string, Gen> = {
       impacts: [
         { assetId: 'OIL', pct: 0.1 * k, ticks: 2 },
         { sector: 'energy', pct: 0.06 * k, ticks: 2 },
-        { assetId: 'COFFEE', pct: 0.05 * k, ticks: 1 },
       ],
       shifts: [{ assetId: 'OIL', mult: 1 + 0.06 * k }],
       hint: { assetId: 'OIL', up: true },
-    });
-  },
-  blight(_rng, c) {
-    const k = c.intensity;
-    return base({
-      kind: 'blight',
-      headline: 'Coffee leaf rust wipes out half the bean harvest. Baristas weep.',
-      teaser: 'a crop disease in coffee plantations',
-      tone: 'bad',
-      impacts: [{ assetId: 'COFFEE', pct: 0.2 * k, ticks: 2 }],
-      shifts: [{ assetId: 'COFFEE', mult: 1 + 0.15 * k }],
-      hint: { assetId: 'COFFEE', up: true },
     });
   },
   tariffs(rng, c) {
@@ -248,15 +227,15 @@ const GENERATORS: Record<string, Gen> = {
     return base({
       kind: 'tariffs',
       source: 'Market Desk',
-      headline: `Global tariff spat escalates over ${rng.pick(['rubber ducks', 'semiconductors', 'cheese', 'bananas'])}. Shipping slumps, electronics pricier.`,
+      headline: `Global tariff spat escalates over ${rng.pick(['rubber ducks', 'semiconductors', 'cheese', 'bananas'])}. Lithium scarce, tech stocks slide.`,
       teaser: 'new tariffs',
       tone: 'bad',
       impacts: [
-        { sector: 'shipping', pct: -0.08 * k, ticks: 2 },
-        { assetId: 'ELEC', pct: 0.07 * k, ticks: 2 },
+        { assetId: 'LITHIUM', pct: 0.08 * k, ticks: 2 },
+        { sector: 'tech', pct: -0.07 * k, ticks: 2 },
       ],
-      shifts: [{ assetId: 'ELEC', mult: 1 + 0.05 * k }],
-      hint: { assetId: 'ELEC', up: true },
+      shifts: [{ assetId: 'LITHIUM', mult: 1 + 0.06 * k }],
+      hint: { assetId: 'LITHIUM', up: true },
     });
   },
   defenceContract(rng, c) {
@@ -299,7 +278,6 @@ const WEIGHTS: [string, number][] = [
   ['earnings', 16],
   ['rates', 6],
   ['coldSnap', 6],
-  ['blight', 5],
   ['tariffs', 6],
   ['defenceContract', 5],
   ['dogeTweet', 7],

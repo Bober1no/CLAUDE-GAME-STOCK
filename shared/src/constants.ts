@@ -3,21 +3,17 @@ export const PLAYER_COLORS = ['#4fc3f7', '#ff7043', '#aed581', '#ba68c8', '#ffd5
 
 export const SECTOR_LABEL: Record<string, string> = {
   energy: 'Energy',
-  defence: 'Defence',
   tech: 'Tech',
-  shipping: 'Shipping',
   food: 'Food',
-  pharma: 'Pharma',
+  defence: 'Defence',
 };
 
 export const CORPORATE_LABEL: Record<string, string> = {
   rnd: 'Invest in R&D',
   marketing: 'Marketing blitz',
-  buyback: 'Share buyback',
-  issue: 'Issue new shares',
   dividend: 'Pay dividend',
   fraud: 'Cook the books',
 };
 
 /** Shown on the home screen, in-game top bar and /health. Bump this when you ship an update. */
-export const GAME_VERSION = 'v2';
+export const GAME_VERSION = 'v3';

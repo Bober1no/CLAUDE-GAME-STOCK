@@ -5,10 +5,11 @@
  * the client imports it for display (costs, timers). Change a number, redeploy, done.
  */
 
-export type CommodityId = 'OIL' | 'GOLD' | 'WHEAT' | 'COFFEE' | 'LITHIUM' | 'LUMBER' | 'RICE' | 'ELEC';
+export type CommodityId = 'OIL' | 'GOLD' | 'WHEAT' | 'LITHIUM';
 
-export type Sector = 'energy' | 'defence' | 'tech' | 'shipping' | 'food' | 'pharma';
-export const SECTORS: Sector[] = ['energy', 'defence', 'tech', 'shipping', 'food', 'pharma'];
+/** Each sector is tied to one commodity: energy↔oil, tech↔lithium, food↔wheat, defence↔gold. */
+export type Sector = 'energy' | 'tech' | 'food' | 'defence';
+export const SECTORS: Sector[] = ['energy', 'tech', 'food', 'defence'];
 
 export interface CommodityDef {
   id: CommodityId;
@@ -99,23 +100,14 @@ export const CONFIG = {
     { id: 'OIL', name: 'Crude Oil', basePrice: 80, depth: 30_000, volatility: 0.012 },
     { id: 'GOLD', name: 'Gold', basePrice: 1900, depth: 45_000, volatility: 0.006 },
     { id: 'WHEAT', name: 'Wheat', basePrice: 7, depth: 20_000, volatility: 0.01 },
-    { id: 'COFFEE', name: 'Coffee', basePrice: 2.4, depth: 15_000, volatility: 0.014 },
     { id: 'LITHIUM', name: 'Lithium', basePrice: 24, depth: 18_000, volatility: 0.016 },
-    { id: 'LUMBER', name: 'Lumber', basePrice: 520, depth: 16_000, volatility: 0.012 },
-    { id: 'RICE', name: 'Rice', basePrice: 17, depth: 18_000, volatility: 0.009 },
-    { id: 'ELEC', name: 'Electronics', basePrice: 140, depth: 25_000, volatility: 0.011 },
   ] as CommodityDef[],
 
   /** Computer-run listed companies, so there's always plenty to trade. */
   npcCompanies: [
     { id: 'HOTA', name: 'Hot Air Petroleum', sector: 'energy', basePrice: 62 },
-    { id: 'DRIL', name: 'Drill Baby Drill', sector: 'energy', basePrice: 38 },
-    { id: 'BOOM', name: 'Boom Industries', sector: 'defence', basePrice: 88 },
     { id: 'VAPR', name: 'Quantum Vapourware', sector: 'tech', basePrice: 115 },
-    { id: 'FRUT', name: 'iFruit', sector: 'tech', basePrice: 74 },
-    { id: 'SLOW', name: 'Slowboat Freight', sector: 'shipping', basePrice: 27 },
     { id: 'SNAK', name: 'Big Snack Foods', sector: 'food', basePrice: 45 },
-    { id: 'PLCB', name: 'Placebo Pharma', sector: 'pharma', basePrice: 96 },
   ] as NpcCompanyDef[],
 
   memecoin: {
@@ -146,21 +138,15 @@ export const CONFIG = {
    */
   sectorLinks: [
     { driver: 'OIL', sector: 'energy', coef: 0.55 },
-    { driver: 'OIL', sector: 'shipping', coef: -0.4 },
-    { driver: 'LITHIUM', sector: 'tech', coef: 0.35 },
-    { driver: 'ELEC', sector: 'tech', coef: 0.3 },
-    { driver: 'WHEAT', sector: 'food', coef: 0.3 },
-    { driver: 'RICE', sector: 'food', coef: 0.25 },
-    { driver: 'COFFEE', sector: 'food', coef: 0.15 },
-    { driver: 'GOLD', sector: 'defence', coef: 0.1 },
-    { driver: 'LUMBER', sector: 'shipping', coef: 0.1 },
+    { driver: 'LITHIUM', sector: 'tech', coef: 0.45 },
+    { driver: 'WHEAT', sector: 'food', coef: 0.4 },
+    { driver: 'GOLD', sector: 'defence', coef: 0.35 },
   ] as { driver: CommodityId; sector: Sector; coef: number }[],
 
   /** Commodities also correlate with each other (lagged, same rule). */
   commodityLinks: [
     { driver: 'OIL', target: 'GOLD', coef: 0.1 },
-    { driver: 'LITHIUM', target: 'ELEC', coef: 0.3 },
-    { driver: 'WHEAT', target: 'RICE', coef: 0.3 },
+    { driver: 'OIL', target: 'WHEAT', coef: 0.1 },
   ] as { driver: CommodityId; target: CommodityId; coef: number }[],
 
   // ---------------------------------------------------------------- running your company
@@ -169,10 +155,6 @@ export const CONFIG = {
     rnd: { cost: 1500, healthGain: 0.08, delayTicks: 2, cooldownSec: 40 },
     /** Marketing blitz: short-term hype, followed by a small hangover. */
     marketing: { cost: 800, hype: 0.07, ticks: 2, hangover: -0.03, cooldownSec: 30 },
-    /** Buyback: spend cash, which pushes price up and slightly raises fundamentals. */
-    buyback: { minAmount: 500, maxAmount: 20_000, impactPerDepth: 0.6, healthPer1000: 0.008, cooldownSec: 30 },
-    /** Issue new shares: instant cash, dilution hits the price and fundamentals. */
-    issue: { cash: 2500, impact: -0.07, healthLoss: 0.04, cooldownSec: 60 },
     /** Dividend: pay cash to every holder (pro rata). Investors love it. */
     dividend: { minAmount: 300, maxAmount: 20_000, hype: 0.03, healthGain: 0.02, cooldownSec: 45 },
     /** Cook the books: a big fake pump. Each tick there's a chance the regulator finds out. */
@@ -189,8 +171,6 @@ export const CONFIG = {
     lobby: { cost: 2500, impact: 0.06, ticks: 3, cooldownSec: 45 },
     /** Spy on a rival's trading desk: see their queued orders. */
     spy: { cost: 1200, durationSec: 90, caughtChance: 0.25, reputationHit: 10, cooldownSec: 30 },
-    /** Buy a research subscription: see the live, exact order book. */
-    research: { cost: 600, durationSec: 60, cooldownSec: 10 },
   },
 
   // ---------------------------------------------------------------- news + events
