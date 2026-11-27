@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CONFIG, type GameMode } from '@warmarket/shared';
 import { leaveRoom, startGame, updateSettings } from '../net/socket';
 import { useStore } from '../state/store';
+import { RenameBox } from './RenameBox';
 
 const MODES: { id: GameMode; label: string; desc: string }[] = [
   { id: 'networth', label: 'Net worth', desc: 'Richest nation when the clock runs out wins.' },
@@ -50,6 +51,7 @@ export function Lobby() {
                 {p.name}
                 {p.id === session.playerId && <span className="faint"> (you)</span>}
               </span>
+              {p.id === session.playerId && <RenameBox />}
               {p.isHost && <span className="tag host">host</span>}
               {!p.connected && <span className="tag red">offline</span>}
             </div>

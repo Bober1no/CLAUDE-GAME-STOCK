@@ -33,6 +33,19 @@ export class Room {
     private emitter: Emitter,
   ) {}
 
+  /** Change a player's display name (lobby or mid-game). Returns an error string or null. */
+  rename(playerId: string, name: string): string | null {
+    const p = this.get(playerId);
+    if (!p) return 'Not in this room';
+    if (p.name === name) return null;
+    if (this.players.some((x) => x.id !== playerId && x.name.toLowerCase() === name.toLowerCase())) return 'Name already taken in this room';
+    const old = p.name;
+    p.name = name;
+    this.game?.renamePlayer(playerId, old, name);
+    this.broadcastLobby();
+    return null;
+  }
+
   addPlayer(name: string): RoomPlayer | string {
     if (this.phase !== 'lobby') return 'Game already started';
     if (this.players.length >= CONFIG.lobby.maxPlayers) return 'Room is full';

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CONFIG, RESOURCE_LABEL, fmtMoney, fmtPct, fmtPrice, type ResourceKind } from '@warmarket/shared';
 import { act } from '../net/socket';
 import { setState, useStore } from '../state/store';
+import { RenameBox } from './RenameBox';
 
 const RES: ResourceKind[] = ['oil', 'food', 'metals', 'tech'];
 
@@ -27,6 +28,7 @@ export function NationPanel() {
         <b style={{ fontSize: 14 }}>{myNation.name}</b>
         <span style={{ flex: 1 }} />
         {me.role !== 'none' && <span className="tag host">{me.role}</span>}
+        <RenameBox />
       </div>
       <div className="label">Stability {me.protesting && <span className="down">· PROTESTS (production ×{CONFIG.stability.protestProductionMult})</span>}</div>
       <div className="stab">

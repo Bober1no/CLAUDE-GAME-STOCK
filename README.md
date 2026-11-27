@@ -61,6 +61,10 @@ scheduler, map generation.
 
 ## Deploy to Render (free web service)
 
+No command line needed: Render builds and runs everything from GitHub, and players just open the
+Render URL in a browser. (Opening `index.html` straight from disk can't work: the game needs its
+server.) If your code is on a non-default branch, pick that branch in Render.
+
 The repo includes a `render.yaml` blueprint. Two ways to deploy:
 
 **Blueprint:** Render dashboard → New → Blueprint → pick this GitHub repo. It reads `render.yaml`.

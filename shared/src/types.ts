@@ -462,5 +462,6 @@ export interface ClientToServer {
   'lobby:settings': (p: Partial<LobbySettings>, ack: (r: Ack) => void) => void;
   'lobby:start': (p: Record<string, never>, ack: (r: Ack) => void) => void;
   'lobby:leave': (p: Record<string, never>, ack: (r: Ack) => void) => void;
+  'lobby:rename': (p: { name: string }, ack: (r: Ack) => void) => void;
   act: (a: Action, ack: (r: Ack) => void) => void;
 }

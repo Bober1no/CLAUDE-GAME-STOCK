@@ -128,6 +128,18 @@ export function updateSettings(p: Partial<LobbySettings>) {
 export function startGame() {
   return withAck<Ack>((cb) => socket.emit('lobby:start', {}, cb));
 }
+export async function renameMe(name: string) {
+  const r = await withAck<Ack>((cb) => socket.emit('lobby:rename', { name }, cb));
+  if (r.ok) {
+    try {
+      localStorage.setItem('warmarket.name', name.trim());
+    } catch {
+      /* ignore */
+    }
+  }
+  return r;
+}
+
 export async function leaveRoom() {
   await withAck<Ack>((cb) => socket.emit('lobby:leave', {}, cb));
   saveSession(null);

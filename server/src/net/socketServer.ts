@@ -26,6 +26,8 @@ export function attachSockets(io: IO): RoomManager {
     toAll: (event, ...args) => io.to(`r:${code}`).emit(event, ...args),
   });
   const rooms = new RoomManager(makeEmitter);
+  /** playerId → last rename time (stops rename spam). */
+  const renameAt = new Map<string, number>();
 
   io.on('connection', (socket: Sock) => {
     const data: SocketData = { bucket: new TokenBucket(CONFIG.net.rateLimitPerSec, CONFIG.net.rateLimitBurst) };
@@ -137,6 +139,22 @@ export function attachSockets(io: IO): RoomManager {
         const err = room.start();
         if (err) return { ok: false, error: err };
         room.game!.isConnected = (pid) => (room.get(pid)?.sockets.size ?? 0) > 0;
+        return { ok: true };
+      }),
+    );
+
+    socket.on(
+      'lobby:rename',
+      guard((raw) => {
+        const { room, player } = data;
+        if (!room || !player) return { ok: false, error: 'Not in a room' };
+        const p = createSchema.safeParse(raw);
+        if (!p.success) return { ok: false, error: 'Names must be 1–16 characters' };
+        const now = Date.now();
+        if (now - (renameAt.get(player.id) ?? 0) < 3000) return { ok: false, error: 'Wait a few seconds before renaming again' };
+        const err = room.rename(player.id, p.data.name);
+        if (err) return { ok: false, error: err };
+        renameAt.set(player.id, now);
         return { ok: true };
       }),
     );

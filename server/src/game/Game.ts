@@ -614,6 +614,14 @@ export class Game {
   /** Overridden by the room glue so the game knows who's online. */
   isConnected: (playerId: string) => boolean = () => true;
 
+  /** Display-name change mid-game. Old chat lines keep the name they were sent under. */
+  renamePlayer(playerId: string, oldName: string, newName: string): void {
+    const p = this.players.find((x) => x.id === playerId);
+    if (!p) return;
+    p.name = newName;
+    if (!this.ended) this.news.post('Global Wire', `${oldName} will now be known as ${newName}`, 'neutral', false);
+  }
+
   /** Hook for when a player's socket comes back. */
   onReconnect?: (playerId: string) => void;
 
