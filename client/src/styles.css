@@ -1082,3 +1082,15 @@ svg.map {
 .inf-row .input {
   padding: 4px 6px;
 }
+
+.ver {
+  font-family: var(--mono);
+  font-size: 0.45em;
+  font-weight: 600;
+  color: #000;
+  background: var(--amber);
+  padding: 1px 5px;
+  border-radius: 2px;
+  vertical-align: middle;
+  letter-spacing: 0.04em;
+}

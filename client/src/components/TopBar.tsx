@@ -1,4 +1,4 @@
-import { CONFIG, fmtClock, fmtMoney, fmtPct, fmtPrice } from '@warmarket/shared';
+import { CONFIG, GAME_VERSION, fmtClock, fmtMoney, fmtPct, fmtPrice } from '@warmarket/shared';
 import { useNow } from '../hooks';
 import { setState, useStore } from '../state/store';
 
@@ -20,7 +20,7 @@ export function TopBar() {
     <div className="topbar">
       <div className="tb-cell tb-brand">
         <span>
-          WAR<b>/</b>MKT<i>_</i>
+          WAR<b>/</b>MKT<i>_</i> <span className="ver">{GAME_VERSION}</span>
         </span>
       </div>
       <div className="tb-cell">

@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
-import type { ClientToServer, ServerToClient } from '@warmarket/shared';
+import { GAME_VERSION, type ClientToServer, type ServerToClient } from '@warmarket/shared';
 import { attachSockets } from './net/socketServer.js';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -26,7 +26,7 @@ const io = new Server<ClientToServer, ServerToClient>(httpServer, {
 const rooms = attachSockets(io);
 
 app.get('/health', (_req, res) => {
-  res.status(200).json({ ok: true, rooms: rooms.count(), uptime: Math.round(process.uptime()) });
+  res.status(200).json({ ok: true, version: GAME_VERSION, rooms: rooms.count(), uptime: Math.round(process.uptime()) });
 });
 
 if (existsSync(clientDist)) {

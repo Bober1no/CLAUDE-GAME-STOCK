@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CONFIG } from '@warmarket/shared';
+import { CONFIG, GAME_VERSION } from '@warmarket/shared';
 import { createRoom, joinRoom } from '../net/socket';
 import { setState, useStore } from '../state/store';
 
@@ -33,7 +33,7 @@ export function Home() {
     <div className="splash">
       <div className="splash-card">
         <div className="logo">
-          WAR<b>/</b>MARKET<i>_</i>
+          WAR<b>/</b>MARKET<i>_</i> <span className="ver">{GAME_VERSION}</span>
         </div>
         <div className="tagline">Run a company. Plant stories. Short your friends. The stock market is the scoreboard.</div>
         <div className="tape">

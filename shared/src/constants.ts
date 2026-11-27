@@ -18,3 +18,6 @@ export const CORPORATE_LABEL: Record<string, string> = {
   dividend: 'Pay dividend',
   fraud: 'Cook the books',
 };
+
+/** Shown on the home screen, in-game top bar and /health. Bump this when you ship an update. */
+export const GAME_VERSION = 'v2';
