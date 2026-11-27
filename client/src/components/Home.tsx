@@ -35,7 +35,7 @@ export function Home() {
         <div className="logo">
           WAR<b>/</b>MARKET<i>_</i>
         </div>
-        <div className="tagline">Run a nation. Start wars. Short your neighbours. The stock market is the scoreboard.</div>
+        <div className="tagline">Run a company. Plant stories. Short your friends. The stock market is the scoreboard.</div>
         <div className="tape">
           {TAPE}
           {TAPE}

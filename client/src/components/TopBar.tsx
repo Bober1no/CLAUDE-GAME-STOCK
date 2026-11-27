@@ -1,6 +1,6 @@
-import { CONFIG, fmtClock, fmtMoney } from '@warmarket/shared';
+import { CONFIG, fmtClock, fmtMoney, fmtPct, fmtPrice } from '@warmarket/shared';
 import { useNow } from '../hooks';
-import { useStore } from '../state/store';
+import { setState, useStore } from '../state/store';
 
 export function TopBar() {
   const now = useNow(200);
@@ -9,12 +9,12 @@ export function TopBar() {
   const account = useStore((s) => s.account);
   const view = useStore((s) => s.view);
   const tick = useStore((s) => s.tick);
-  const me = view?.me;
+  const myQuote = useStore((s) => (s.view ? s.quotes[s.view.me.companyId] : undefined));
   if (!st) return null;
   const toTick = Math.max(0, nextTickAt - now);
   const frac = 1 - toTick / CONFIG.clocks.marketTickMs;
   const rank = view ? view.leaderboard.findIndex((r) => r.playerId === st.playerId) + 1 : 0;
-  const myNation = st.nations.find((n) => n.playerId === st.playerId);
+  const me = view?.me;
 
   return (
     <div className="topbar">
@@ -27,14 +27,6 @@ export function TopBar() {
         <span className="k">Room</span>
         <span className="v amber">{st.code}</span>
       </div>
-      {myNation && (
-        <div className="tb-cell">
-          <span className="k">Nation</span>
-          <span className="v" style={{ color: myNation.color, fontFamily: 'var(--sans)', fontSize: 14, fontWeight: 600 }}>
-            {myNation.name}
-          </span>
-        </div>
-      )}
       <div className="tb-cell">
         <span className="k">Session</span>
         <span className={`v ${st.endsAt - now < 60_000 ? 'down' : ''}`}>{fmtClock(st.endsAt - now)}</span>
@@ -46,20 +38,25 @@ export function TopBar() {
           <div style={{ width: `${Math.min(100, frac * 100)}%` }} />
         </div>
       </div>
-      <div className="tb-sp" />
-      {me && st.nations.length > 0 && (
-        <div className="tb-cell">
-          <span className="k">Stability</span>
-          <span className={`v ${me.stability < CONFIG.stability.protestThreshold ? 'down' : me.stability > 60 ? 'up' : 'amber'}`}>
-            {me.stability.toFixed(0)}
-            {me.protesting && <span className="tag red" style={{ marginLeft: 6 }}>protests</span>}
+      {me && myQuote && (
+        <div className="tb-cell" style={{ cursor: 'pointer' }} onClick={() => setState({ selectedAsset: me.companyId })} title="Your company">
+          <span className="k">Your stock</span>
+          <span className="v">
+            {me.companyId} {fmtPrice(myQuote.price)} <span className={myQuote.changeTotal >= 0 ? 'up' : 'down'} style={{ fontSize: 12 }}>{fmtPct(myQuote.changeTotal, 0)}</span>
           </span>
+        </div>
+      )}
+      <div className="tb-sp" />
+      {me && (
+        <div className="tb-cell">
+          <span className="k">Reputation</span>
+          <span className={`v ${me.reputation < 60 ? 'down' : me.reputation < 90 ? 'amber' : 'up'}`}>{me.reputation}</span>
         </div>
       )}
       {account && (
         <>
           <div className="tb-cell">
-            <span className="k">Treasury (free)</span>
+            <span className="k">Cash (free)</span>
             <span className={`v ${account.cash < 0 ? 'down' : ''}`}>{fmtMoney(account.cash - account.reserved)}</span>
           </div>
           <div className="tb-cell">

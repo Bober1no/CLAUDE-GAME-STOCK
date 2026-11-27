@@ -80,7 +80,7 @@ export interface PlayerAccount {
   marginCall: boolean;
 }
 
-/** A per-tick impact (news, war, events): `perTick` added to drift for `ticksLeft` ticks. */
+/** A per-tick impact (news, stories, events): `perTick` added to drift for `ticksLeft` ticks. */
 export interface Impact {
   assetId: string;
   perTick: number;
@@ -181,6 +181,16 @@ export class Market {
     return acct;
   }
 
+  /** Give a player shares outright (founder stake). No cash changes hands. */
+  grantShares(playerId: string, assetId: string, qty: number, price: number): void {
+    const acct = this.accounts.get(playerId);
+    if (!acct || qty <= 0) return;
+    const pos = acct.positions.get(assetId) ?? emptyPosition();
+    pos.avgPrice = (pos.avgPrice * pos.qty + price * qty) / (pos.qty + qty);
+    pos.qty += qty;
+    acct.positions.set(assetId, pos);
+  }
+
   tickTime(tick: number): number {
     return Math.floor(this.startTime / 1000) + tick * Math.round(CONFIG.clocks.marketTickMs / 1000);
   }
@@ -192,7 +202,7 @@ export class Market {
     return a ? a.cash - a.reserved : 0;
   }
 
-  /** Spend cash on non-market things (armies, buildings). Fails if not enough free cash. */
+  /** Spend cash on non-market things (CEO actions, influence). Fails if not enough free cash. */
   spend(playerId: string, amount: number): boolean {
     const a = this.accounts.get(playerId);
     if (!a || amount < 0 || a.cash - a.reserved < amount) return false;
@@ -364,8 +374,8 @@ export class Market {
     for (const a of this.assets.values()) if (a.info.sector === sector) this.addImpact(a.info.id, totalPct, durationTicks, why);
   }
 
-  addNationImpact(nationId: string, totalPct: number, durationTicks: number, why?: string): void {
-    for (const a of this.assets.values()) if (a.info.nationId === nationId) this.addImpact(a.info.id, totalPct, durationTicks, why);
+  addCompaniesImpact(totalPct: number, durationTicks: number, why?: string): void {
+    for (const a of this.assets.values()) if (a.info.kind === 'company') this.addImpact(a.info.id, totalPct, durationTicks, why);
   }
 
   // ------------------------------------------------------------------- the batch auction
@@ -589,7 +599,7 @@ export class Market {
     return v;
   }
 
-  /** Cash + positions (excluding nation assets, which the game adds). */
+  /** Cash + positions. */
   marketWorth(playerId: string): number {
     const acct = this.accounts.get(playerId);
     if (!acct) return 0;

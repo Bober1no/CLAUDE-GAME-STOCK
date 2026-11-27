@@ -20,10 +20,12 @@ export function Watchlist() {
 
   const held = new Set(account?.positions.map((p) => p.assetId) ?? []);
   const groups: { title: string; assets: AssetInfo[] }[] = [
+    { title: 'Player companies', assets: st.assets.filter((a) => a.kind === 'company' && a.ownerId) },
     { title: 'Commodities', assets: st.assets.filter((a) => a.kind === 'commodity') },
-    ...st.nations.map((n) => ({ title: n.name, assets: st.assets.filter((a) => a.nationId === n.id) })),
+    { title: 'Market companies', assets: st.assets.filter((a) => a.kind === 'company' && !a.ownerId) },
     { title: 'Crypto (lol)', assets: st.assets.filter((a) => a.kind === 'memecoin') },
   ].filter((g) => g.assets.length);
+  const colorOf = (a: AssetInfo) => (a.ownerId ? st.players.find((p) => p.id === a.ownerId)?.color : undefined);
 
   return (
     <div className="panel" style={{ flex: 1 }}>
@@ -40,7 +42,7 @@ export function Watchlist() {
               <Group key={g.title} title={g.title}>
                 {g.assets.map((a) => {
                   const q = quotes[a.id];
-                  const nationColor = a.nationId ? st.nations.find((n) => n.id === a.nationId)?.color : undefined;
+                  const nationColor = colorOf(a);
                   return (
                     <tr key={a.id} className={`click wl-row ${selected === a.id ? 'sel' : ''}`} onClick={() => setState({ selectedAsset: a.id })}>
                       <td>

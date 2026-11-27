@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { CONFIG, NATION_COLORS, type LobbySettings, type LobbyState, type RoomPhase } from '@warmarket/shared';
+import { CONFIG, PLAYER_COLORS, SECTORS, type LobbySettings, type LobbyState, type RoomPhase, type Sector } from '@warmarket/shared';
 import { uid } from '../util/rng.js';
 import type { Emitter } from '../net/emitter.js';
 import { Game } from '../game/Game.js';
@@ -10,6 +10,8 @@ export interface RoomPlayer {
   /** Secret used to reclaim this seat after a disconnect. Never sent to other players. */
   token: string;
   color: string;
+  companyName: string;
+  sector: Sector;
   sockets: Set<string>;
   lastSeen: number;
 }
@@ -20,7 +22,6 @@ export class Room {
   hostId = '';
   settings: LobbySettings = {
     sessionMinutes: CONFIG.lobby.defaultSessionMinutes,
-    mode: 'networth',
     rolesEnabled: false,
   };
   game: Game | null = null;
@@ -46,13 +47,31 @@ export class Room {
     return null;
   }
 
+  /** Set your company's name and/or sector. Lobby only (the company IPOs at the start). */
+  setCompany(playerId: string, companyName?: string, sector?: Sector): string | null {
+    if (this.phase !== 'lobby') return 'Your company already went public';
+    const p = this.get(playerId);
+    if (!p) return 'Not in this room';
+    if (companyName !== undefined) {
+      if (this.players.some((x) => x.id !== playerId && x.companyName.toLowerCase() === companyName.toLowerCase())) return 'Another player already has that company name';
+      p.companyName = companyName;
+    }
+    if (sector !== undefined) p.sector = sector;
+    this.broadcastLobby();
+    return null;
+  }
+
   addPlayer(name: string): RoomPlayer | string {
     if (this.phase !== 'lobby') return 'Game already started';
     if (this.players.length >= CONFIG.lobby.maxPlayers) return 'Room is full';
     if (this.players.some((p) => p.name.toLowerCase() === name.toLowerCase())) return 'Name already taken in this room';
     const used = new Set(this.players.map((p) => p.color));
-    const color = NATION_COLORS.find((c) => !used.has(c)) ?? NATION_COLORS[0];
-    const p: RoomPlayer = { id: uid('p'), name, token: randomBytes(18).toString('base64url'), color, sockets: new Set(), lastSeen: Date.now() };
+    const color = PLAYER_COLORS.find((c) => !used.has(c)) ?? PLAYER_COLORS[0];
+    const usedSectors = new Set(this.players.map((p) => p.sector));
+    const sector = SECTORS.find((s) => !usedSectors.has(s)) ?? SECTORS[this.players.length % SECTORS.length];
+    let companyName = `${name} Corp`.slice(0, CONFIG.lobby.maxCompanyNameLength);
+    if (this.players.some((p) => p.companyName.toLowerCase() === companyName.toLowerCase())) companyName = `${companyName.slice(0, 20)} ${this.players.length + 1}`;
+    const p: RoomPlayer = { id: uid('p'), name, token: randomBytes(18).toString('base64url'), color, companyName, sector, sockets: new Set(), lastSeen: Date.now() };
     this.players.push(p);
     if (!this.hostId) this.hostId = p.id;
     return p;
@@ -81,7 +100,15 @@ export class Room {
       phase: this.phase,
       hostId: this.hostId,
       settings: this.settings,
-      players: this.players.map((p) => ({ id: p.id, name: p.name, isHost: p.id === this.hostId, connected: p.sockets.size > 0, color: p.color })),
+      players: this.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        isHost: p.id === this.hostId,
+        connected: p.sockets.size > 0,
+        color: p.color,
+        companyName: p.companyName,
+        sector: p.sector,
+      })),
     };
   }
 
@@ -95,7 +122,7 @@ export class Room {
     this.phase = 'running';
     this.game = new Game(
       this.code,
-      this.players.map((p) => ({ id: p.id, name: p.name, color: p.color })),
+      this.players.map((p) => ({ id: p.id, name: p.name, color: p.color, companyName: p.companyName, sector: p.sector })),
       this.settings,
       this.emitter,
       () => {

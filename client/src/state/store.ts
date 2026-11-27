@@ -15,7 +15,7 @@ import type {
   PressurePayload,
   Quote,
   SessionInfo,
-  WorldView,
+  PlayerView,
 } from '@warmarket/shared';
 
 export type ConnState = 'connecting' | 'connected' | 'reconnecting' | 'offline';
@@ -35,7 +35,7 @@ export interface State {
   clockOffset: number;
   pressure: PressurePayload | null;
   account: AccountView | null;
-  view: WorldView | null;
+  view: PlayerView | null;
   news: NewsItem[];
   breaking: NewsItem | null;
   chat: ChatMessage[];
@@ -44,8 +44,6 @@ export interface State {
   tips: Notice[];
   recap: GameRecap | null;
   selectedAsset: string;
-  selectedProvince: number | null;
-  selectedArmy: string | null;
 }
 
 const initial: State = {
@@ -69,8 +67,6 @@ const initial: State = {
   tips: [],
   recap: null,
   selectedAsset: 'OIL',
-  selectedProvince: null,
-  selectedArmy: null,
 };
 
 let state: State = initial;
@@ -103,8 +99,6 @@ export function resetGameState(): void {
     notices: [],
     tips: [],
     recap: null,
-    selectedProvince: null,
-    selectedArmy: null,
   });
 }
 

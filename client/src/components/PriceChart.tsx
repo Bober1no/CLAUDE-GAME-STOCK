@@ -12,7 +12,8 @@ export function PriceChart() {
   const candles = useStore((s) => s.history[s.selectedAsset]);
   const quote = useStore((s) => s.quotes[s.selectedAsset]);
   const info = useStore((s) => s.static?.assets.find((a) => a.id === s.selectedAsset));
-  const nation = useStore((s) => s.static?.nations.find((n) => n.id === info?.nationId));
+  const owner = useStore((s) => s.static?.players.find((p) => p.id === info?.ownerId));
+  const ownerTag = owner ? { color: owner.color, name: `CEO: ${owner.name}` } : undefined;
   const lastLen = useRef(0);
   const lastAsset = useRef('');
 
@@ -65,12 +66,12 @@ export function PriceChart() {
   return (
     <div className="panel" style={{ flex: 1 }}>
       <div className="chart-head">
-        <span className="sym" style={nation ? { color: nation.color } : undefined}>
+        <span className="sym" style={ownerTag ? { color: ownerTag.color } : undefined}>
           {selected}
         </span>
         <span className="dim">{info?.name}</span>
         {info?.sector && <span className="tag">{SECTOR_LABEL[info.sector]}</span>}
-        {nation && <span className="tag" style={{ borderColor: nation.color, color: nation.color }}>{nation.name}</span>}
+        {ownerTag && <span className="tag" style={{ borderColor: ownerTag.color, color: ownerTag.color }}>{ownerTag.name}</span>}
         <span style={{ flex: 1 }} />
         {quote && (
           <>

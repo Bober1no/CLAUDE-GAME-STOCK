@@ -1,16 +1,14 @@
-import type { BuildingKind, CommodityId, ResourceKind, Sector, Terrain } from './config.js';
+import type { Sector } from './config.js';
 
 // =====================================================================================
 // Lobby
 // =====================================================================================
 
-export type GameMode = 'networth' | 'domination' | 'hegemony' | 'lastStanding';
 export type Role = 'none' | 'analyst' | 'whale' | 'journalist';
 export type RoomPhase = 'lobby' | 'running' | 'ended';
 
 export interface LobbySettings {
   sessionMinutes: number;
-  mode: GameMode;
   rolesEnabled: boolean;
 }
 
@@ -20,6 +18,8 @@ export interface LobbyPlayer {
   isHost: boolean;
   connected: boolean;
   color: string;
+  companyName: string;
+  sector: Sector;
 }
 
 export interface LobbyState {
@@ -38,42 +38,6 @@ export interface SessionInfo {
 }
 
 // =====================================================================================
-// Map / world (static per game)
-// =====================================================================================
-
-export interface ProvinceStatic {
-  id: number;
-  name: string;
-  /** SVG path data for the province polygon. */
-  path: string;
-  cx: number;
-  cy: number;
-  terrain: Terrain;
-  neighbors: number[];
-  /** Commodity specialty (affects global supply of that commodity). */
-  specialty: CommodityId;
-  coastal: boolean;
-}
-
-export interface MapStatic {
-  width: number;
-  height: number;
-  provinces: ProvinceStatic[];
-  /** Pairs of province ids connected by sea lanes (drawn dashed). */
-  seaLanes: [number, number][];
-  /** Decorative ocean cells (SVG paths). */
-  oceanPaths: string[];
-}
-
-export interface NationStatic {
-  id: string;
-  playerId: string;
-  name: string;
-  color: string;
-  capital: number;
-}
-
-// =====================================================================================
 // Market
 // =====================================================================================
 
@@ -84,7 +48,8 @@ export interface AssetInfo {
   name: string;
   kind: AssetKind;
   sector?: Sector;
-  nationId?: string;
+  /** Player who runs this company (null/undefined = computer-run). */
+  ownerId?: string | null;
   basePrice: number;
 }
 
@@ -129,9 +94,7 @@ export interface PositionView {
   /** Signed: >0 long, <0 short. */
   qty: number;
   avgPrice: number;
-  /** Borrowed cash on leveraged longs. */
   loan: number;
-  /** Cash locked as collateral on shorts. */
   collateral: number;
   /** Current equity of this position (what you would get closing it at market). */
   value: number;
@@ -183,132 +146,44 @@ export interface MarketHistoryPayload {
 /** Fuzzy, delayed BUY/SELL pressure, -1 (all sell) .. +1 (all buy). */
 export interface PressurePayload {
   bars: Record<string, number>;
-  /** True if this player is seeing the real, undelayed book (spy / analyst). */
+  /** True if this player is seeing the real, undelayed book (research / analyst). */
   exact: boolean;
 }
 
 // =====================================================================================
-// Nations / world view (per-player filtered)
+// Player view (per-player filtered)
 // =====================================================================================
 
-export type Resources = Record<ResourceKind, number>;
+export type CorporateAction = 'rnd' | 'marketing' | 'buyback' | 'issue' | 'dividend' | 'fraud';
+export type InfluenceAction = 'story' | 'lobby' | 'spy' | 'research';
 
-export interface ConstructionView {
-  kind: BuildingKind;
-  doneAt: number;
-}
-
-export interface ProvinceView {
-  id: number;
-  ownerId: string | null;
-  /** False = fogged: only ownership is known. */
-  visible: boolean;
-  garrison?: number;
-  buildings?: BuildingKind[];
-  construction?: ConstructionView | null;
-  /** Active world event effect on this province (drought etc.). */
-  effect?: string | null;
-}
-
-export interface ArmyMoveView {
-  from: number;
-  to: number;
-  departAt: number;
-  arriveAt: number;
-}
-
-export interface ArmyView {
-  id: string;
-  ownerId: string;
-  provinceId: number;
-  strength: number;
-  move: ArmyMoveView | null;
-}
-
-export interface RecruitView {
-  provinceId: number;
-  doneAt: number;
-}
-
-export interface SpyView {
-  id: string;
-  /** idle | training | on mission */
-  status: 'training' | 'idle' | 'mission';
-  readyAt: number;
-  mission?: SpyMission;
-  targetId?: string;
-}
-
-export type SpyMission = 'vision' | 'orderflow' | 'stealTech' | 'fakeNews';
-
-export interface NationPrivateView {
-  id: string;
-  treasury: number;
-  resources: Resources;
-  /** Net per-second rates (after upkeep). */
-  rates: Resources & { cash: number };
-  stability: number;
-  protesting: boolean;
-  recruiting: RecruitView[];
-  spies: SpyView[];
-  /** Nations whose provinces you currently see via spies. */
-  spyVisionOn: string[];
-  /** Nations whose order flow you currently see via spies. */
-  orderflowOn: string[];
-  warCooldownUntil: number;
+export interface MyView {
+  /** Your company's ticker. */
+  companyId: string;
+  /** Your company's fundamental health multiplier (1 = IPO). Only you see the true figure. */
+  health: number;
+  /** True while you have cooked books that haven't been discovered yet. */
+  fraudActive: boolean;
+  /** action → time it's available again */
+  cooldowns: Partial<Record<CorporateAction | InfluenceAction, number>>;
+  researchUntil: number;
+  /** Rivals whose trading desk you're reading, and until when. */
+  spying: { playerId: string; until: number }[];
+  reputation: number;
   role: Role;
   journalistReadyAt: number;
+  /** R&D investments still maturing. */
+  pendingRnd: number;
 }
 
-export interface NationPublicView {
-  id: string;
-  playerId: string;
+export interface CompanyPublic {
+  assetId: string;
+  ownerId: string | null;
   name: string;
-  color: string;
-  provinces: number;
-  stability: number;
-  reputation: number;
-  connected: boolean;
-  eliminated: boolean;
-  atWarWith: string[];
-  allies: string[];
-  sanctionedBy: string[];
-  embargoed: boolean;
-}
-
-export interface WarView {
-  a: string;
-  b: string;
-  since: number;
-  /** When the aggressor may start entering target land. */
-  mobilisedAt: number;
-  casualties: number;
-}
-
-export interface DealTerms {
-  /** Per-minute flows from proposer to target (positive) — the target gives `receive`. */
-  give: Partial<Resources & { cash: number }>;
-  receive: Partial<Resources & { cash: number }>;
-  durationSec: number;
-}
-
-export interface DealView {
-  id: string;
-  from: string;
-  to: string;
-  terms: DealTerms;
-  status: 'proposed' | 'active' | 'broken' | 'done' | 'rejected' | 'expired';
-  startedAt?: number;
-  endsAt?: number;
-  createdAt: number;
-}
-
-export interface ProposalView {
-  id: string;
-  kind: 'alliance' | 'peace';
-  from: string;
-  to: string;
-  createdAt: number;
+  sector: Sector;
+  /** Public corporate history for this company (counts only — the details are in the news). */
+  dividendsPaid: number;
+  sharesIssued: number;
 }
 
 export interface LeaderboardRow {
@@ -317,30 +192,25 @@ export interface LeaderboardRow {
   color: string;
   netWorth: number;
   connected: boolean;
+  reputation: number;
+  companyId: string;
 }
 
-export interface WorldView {
+export interface PlayerView {
   serverNow: number;
-  leaderboard: LeaderboardRow[];
   endsAt: number;
-  provinces: ProvinceView[];
-  armies: ArmyView[];
-  me: NationPrivateView;
-  nations: NationPublicView[];
-  wars: WarView[];
-  deals: DealView[];
-  proposals: ProposalView[];
-  /** Mode-specific progress line, e.g. domination share. */
-  objective: string;
-  /** Visible orders of rivals (only via orderflow spies). */
-  spiedOrders: { nationId: string; orders: OrderView[] }[];
+  leaderboard: LeaderboardRow[];
+  me: MyView;
+  companies: CompanyPublic[];
+  /** Rivals' queued orders (only while you're spying on them). */
+  spiedOrders: { playerId: string; orders: OrderView[] }[];
 }
 
 // =====================================================================================
 // News / chat
 // =====================================================================================
 
-export type NewsSource = 'Global Wire' | 'Market Desk' | 'War Correspondent' | 'Rumour Mill' | 'Regulator' | 'Citizen Journal';
+export type NewsSource = 'Global Wire' | 'Market Desk' | 'Rumour Mill' | 'Regulator' | 'Citizen Journal' | 'Press Release';
 
 export interface NewsItem {
   id: string;
@@ -348,7 +218,6 @@ export interface NewsItem {
   source: NewsSource;
   headline: string;
   breaking: boolean;
-  /** Tone helps the ticker colour the item. */
   tone: 'good' | 'bad' | 'neutral';
   tickers?: string[];
 }
@@ -379,12 +248,12 @@ export interface RecapEntry {
   name: string;
   color: string;
   netWorth: number;
-  provinces: number;
+  companyId: string;
+  companyChange: number;
   rank: number;
 }
 
 export interface GameRecap {
-  mode: GameMode;
   winnerId: string | null;
   reason: string;
   standings: RecapEntry[];
@@ -397,9 +266,8 @@ export interface GameRecap {
 
 export interface GameStatic {
   code: string;
-  map: MapStatic;
-  nations: NationStatic[];
   assets: AssetInfo[];
+  players: { id: string; name: string; color: string; companyId: string }[];
   startedAt: number;
   endsAt: number;
   marketTickMs: number;
@@ -414,22 +282,12 @@ export interface GameStatic {
 export type Action =
   | { type: 'order'; assetId: string; side: OrderSide; orderType: OrderType; qty: number; limitPrice?: number; leverage?: number }
   | { type: 'cancelOrder'; orderId: string }
-  | { type: 'build'; provinceId: number; kind: BuildingKind }
-  | { type: 'export'; resource: ResourceKind; amount: number }
-  | { type: 'recruit'; provinceId: number }
-  | { type: 'move'; armyId: string; to: number }
-  | { type: 'declareWar'; targetId: string }
-  | { type: 'proposePeace'; targetId: string }
-  | { type: 'respondProposal'; proposalId: string; accept: boolean }
+  | { type: 'corporate'; action: CorporateAction; amount?: number }
+  | { type: 'story'; assetId: string; positive: boolean }
+  | { type: 'lobby'; assetId: string; up: boolean }
+  | { type: 'spy'; targetId: string }
+  | { type: 'research' }
   | { type: 'chat'; text: string; toId: string | null }
-  | { type: 'proposeDeal'; targetId: string; terms: DealTerms }
-  | { type: 'respondDeal'; dealId: string; accept: boolean }
-  | { type: 'breakDeal'; dealId: string }
-  | { type: 'proposeAlliance'; targetId: string }
-  | { type: 'breakAlliance'; targetId: string }
-  | { type: 'sanction'; targetId: string; on: boolean }
-  | { type: 'trainSpy' }
-  | { type: 'spyMission'; spyId: string; targetId: string; mission: SpyMission; assetId?: string }
   | { type: 'publish'; headline: string };
 
 export interface Ack {
@@ -445,7 +303,7 @@ export interface ServerToClient {
   'game:market': (m: MarketTickPayload) => void;
   'game:pressure': (p: PressurePayload) => void;
   'game:account': (a: AccountView) => void;
-  'game:view': (v: WorldView) => void;
+  'game:view': (v: PlayerView) => void;
   'game:ended': (r: GameRecap) => void;
   news: (n: NewsItem) => void;
   'news:backlog': (n: NewsItem[]) => void;
@@ -463,5 +321,6 @@ export interface ClientToServer {
   'lobby:start': (p: Record<string, never>, ack: (r: Ack) => void) => void;
   'lobby:leave': (p: Record<string, never>, ack: (r: Ack) => void) => void;
   'lobby:rename': (p: { name: string }, ack: (r: Ack) => void) => void;
+  'lobby:company': (p: { companyName?: string; sector?: Sector }, ack: (r: Ack) => void) => void;
   act: (a: Action, ack: (r: Ack) => void) => void;
 }

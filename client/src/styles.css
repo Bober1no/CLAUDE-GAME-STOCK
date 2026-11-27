@@ -993,7 +993,7 @@ svg.map {
   border-top: 1px solid var(--line);
   flex-shrink: 0;
 }
-.nation-card {
+.info-card {
   border: 1px solid var(--line);
   padding: 7px 9px;
   margin-bottom: 6px;
@@ -1023,4 +1023,62 @@ svg.map {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
+}
+
+/* ---------------------------------------------------------------- company + influence */
+.co-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-bottom: 6px;
+}
+.co-stats > div {
+  display: flex;
+  flex-direction: column;
+}
+.co-stats .k {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+}
+.co-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid #141b23;
+  font-size: 12px;
+}
+.co-action.danger b {
+  color: var(--red);
+}
+.fraud-warn {
+  background: var(--red-bg);
+  color: var(--red);
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.inf-block {
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  padding: 7px 9px;
+  margin-bottom: 6px;
+}
+.inf-h {
+  font-size: 12.5px;
+}
+.inf-d {
+  font-size: 11px;
+  margin: 2px 0 5px;
+}
+.inf-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 4px;
+}
+.inf-row .input {
+  padding: 4px 6px;
 }

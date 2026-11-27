@@ -1,5 +1,5 @@
 /**
- * Position accounting. One cash balance per player (it IS the nation treasury), plus
+ * Position accounting. One cash balance per player, plus
  * signed positions. Leverage is modelled per position:
  *
  *   Long  (qty > 0): pay notional/L in cash, borrow the rest (loan).

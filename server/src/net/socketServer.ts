@@ -8,7 +8,7 @@ import { CONFIG } from '@warmarket/shared';
 import { RoomManager } from '../rooms/RoomManager.js';
 import type { Room, RoomPlayer } from '../rooms/Room.js';
 import type { Emitter } from './emitter.js';
-import { actionSchema, createSchema, joinSchema, rejoinSchema, settingsSchema } from './schemas.js';
+import { actionSchema, companySchema, createSchema, joinSchema, rejoinSchema, settingsSchema } from './schemas.js';
 import { TokenBucket } from './rateLimit.js';
 
 type IO = Server<ClientToServer, ServerToClient>;
@@ -156,6 +156,18 @@ export function attachSockets(io: IO): RoomManager {
         if (err) return { ok: false, error: err };
         renameAt.set(player.id, now);
         return { ok: true };
+      }),
+    );
+
+    socket.on(
+      'lobby:company',
+      guard((raw) => {
+        const { room, player } = data;
+        if (!room || !player) return { ok: false, error: 'Not in a room' };
+        const p = companySchema.safeParse(raw);
+        if (!p.success) return { ok: false, error: `Company names must be 2–${CONFIG.lobby.maxCompanyNameLength} characters with some letters` };
+        const err = room.setCompany(player.id, p.data.companyName, p.data.sector);
+        return err ? { ok: false, error: err } : { ok: true };
       }),
     );
 

@@ -24,12 +24,10 @@ export class WorldEvents {
   constructor(private g: Game) {}
 
   context(now: number): EventContext {
-    const w = this.g.world;
-    return {
-      intensity: intensityAt(this.elapsed(now)),
-      provinces: w.map.provinces.map((p) => ({ id: p.id, name: p.name, coastal: p.coastal, ownerId: w.provinces[p.id].ownerId, neighbors: p.neighbors })),
-      nations: w.nations.filter((n) => !n.eliminated).map((n) => ({ id: n.id, name: n.name, companies: n.companies.map((c) => ({ id: c.id, name: c.name, sector: c.sector })) })),
-    };
+    const companies = [...this.g.market.assets.values()]
+      .filter((a) => a.info.kind === 'company')
+      .map((a) => ({ id: a.info.id, name: a.info.name, sector: a.info.sector!, ownerId: a.info.ownerId ?? null }));
+    return { intensity: intensityAt(this.elapsed(now)), companies };
   }
 
   elapsed(now: number): number {
@@ -79,14 +77,13 @@ export class WorldEvents {
   /** Private tip to one random player. Sometimes the direction is wrong. */
   private sendTip(spec: EventSpec, fabricated: boolean): void {
     const rng = this.g.rng;
-    const alive = this.g.players.filter((p) => !this.g.world.nationOf(p.id)?.eliminated);
+    const alive = this.g.players;
     if (!alive.length || !spec.hint) return;
     const who = rng.pick(alive);
     const wrong = fabricated || rng.chance(CONFIG.events.insiderTipWrongRate);
     const up = wrong && !fabricated ? !spec.hint.up : spec.hint.up;
     const secs = Math.round(CONFIG.events.insiderTipLeadMs / 1000);
     this.g.notify(who.id, 'tip', `A friend at the ministry says: expect ${spec.teaser} soon. ${spec.hint.assetId} should go ${up ? 'UP' : 'DOWN'}. (~${secs}s, maybe.)`);
-    this.g.stats.tipsSent++;
   }
 
   tick(now: number): void {
@@ -100,16 +97,10 @@ export class WorldEvents {
   apply(spec: EventSpec, now: number): void {
     const g = this.g;
     for (const i of spec.impacts) this.applyImpact(i, spec.kind);
-    for (const pe of spec.provinceEffects) {
-      const p = g.world.provinces[pe.provinceId];
-      if (p) p.effect = { label: pe.label, prodMult: pe.prodMult, until: now + pe.ms };
-    }
-    for (const s of spec.stability) {
-      for (const n of g.world.nations) if (s.nationId === 'all' || s.nationId === n.id) n.stability = Math.max(0, Math.min(100, n.stability + s.delta));
-    }
-    for (const r of spec.resources) {
-      const n = g.world.nation(r.nationId);
-      if (n) n.resources[r.res] = Math.min(CONFIG.world.resourceCap, n.resources[r.res] + r.amount);
+    for (const sh of spec.shifts) {
+      for (const a of g.market.assets.values()) {
+        if (sh.assetId ? a.info.id === sh.assetId : a.info.kind === 'company' && a.info.sector === sh.sector) g.shiftFundamental(a.info.id, sh.mult);
+      }
     }
     g.news.post(spec.source, spec.headline, spec.tone, spec.breaking, spec.impacts.map((i) => i.assetId).filter((x): x is string => !!x));
     this.fired.push({ t: now, kind: spec.kind });
@@ -120,7 +111,7 @@ export class WorldEvents {
     if (i.assetId) return m.addImpact(i.assetId, i.pct, i.ticks, why);
     for (const a of m.assets.values()) {
       if (a.info.kind !== 'company') continue;
-      if (i.allCompanies || ((!i.sector || a.info.sector === i.sector) && (!i.nationId || a.info.nationId === i.nationId))) m.addImpact(a.info.id, i.pct, i.ticks, why);
+      if (i.allCompanies || a.info.sector === i.sector) m.addImpact(a.info.id, i.pct, i.ticks, why);
     }
   }
 }

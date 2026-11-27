@@ -3,17 +3,28 @@
  *
  * Intensity ramps linearly over the session (config.events.intensityStart → End),
  * scaling both how often events fire and how hard they hit.
+ *
+ * Each event declares:
+ *   impacts — one-off price drift spread over N ticks (the headline reaction)
+ *   shifts  — a change to the asset's fundamental value (decays back over time), so the
+ *             move doesn't simply mean-revert away on the next tick
  */
-import { CONFIG, type NewsItem, type ResourceKind, type Sector } from '@warmarket/shared';
+import { CONFIG, type NewsItem, type Sector } from '@warmarket/shared';
 import type { Rng } from '../util/rng.js';
 
 export interface EventImpact {
   assetId?: string;
   sector?: Sector;
-  nationId?: string;
   allCompanies?: boolean;
   pct: number;
   ticks: number;
+}
+
+export interface FundamentalShift {
+  assetId?: string;
+  sector?: Sector;
+  /** Multiplier applied to the fundamental, e.g. 1.15 = +15%. */
+  mult: number;
 }
 
 export interface EventSpec {
@@ -23,19 +34,16 @@ export interface EventSpec {
   tone: NewsItem['tone'];
   breaking: boolean;
   impacts: EventImpact[];
-  provinceEffects: { provinceId: number; label: string; prodMult: number; ms: number }[];
-  stability: { nationId: string | 'all'; delta: number }[];
-  resources: { nationId: string; res: ResourceKind; amount: number }[];
-  /** Short teaser for rumours and insider tips, e.g. "a drought near Saltreach". */
+  shifts: FundamentalShift[];
+  /** Short teaser for rumours and insider tips, e.g. "a drought in the grain belt". */
   teaser: string;
-  /** Main asset affected and its direction, for tips ("buy WHEAT"). */
+  /** Main asset affected and its direction, for tips ("WHEAT should go UP"). */
   hint: { assetId: string; up: boolean } | null;
 }
 
 export interface EventContext {
   intensity: number;
-  provinces: { id: number; name: string; coastal: boolean; ownerId: string | null; neighbors: number[] }[];
-  nations: { id: string; name: string; companies: { id: string; name: string; sector: Sector }[] }[];
+  companies: { id: string; name: string; sector: Sector; ownerId: string | null }[];
 }
 
 export function intensityAt(elapsedFraction: number): number {
@@ -50,6 +58,9 @@ export function eventChanceAt(elapsedFraction: number): number {
   return e.chanceStart + (e.chanceEnd - e.chanceStart) * f;
 }
 
+const REGIONS = ['the grain belt', 'the southern plains', 'the river delta', 'the eastern coast', 'the highlands', 'the northern farms'];
+const PORTS = ['Port Lira', 'Saltreach harbour', 'the Gullwing straits', 'Lanternport', 'Blackwater bay'];
+
 type Gen = (rng: Rng, c: EventContext) => EventSpec | null;
 
 const base = (p: Partial<EventSpec> & Pick<EventSpec, 'kind' | 'headline' | 'teaser'>): EventSpec => ({
@@ -57,30 +68,19 @@ const base = (p: Partial<EventSpec> & Pick<EventSpec, 'kind' | 'headline' | 'tea
   tone: 'neutral',
   breaking: false,
   impacts: [],
-  provinceEffects: [],
-  stability: [],
-  resources: [],
+  shifts: [],
   hint: null,
   ...p,
 });
 
-function cluster(rng: Rng, c: EventContext, filter?: (p: EventContext['provinces'][number]) => boolean) {
-  const pool = filter ? c.provinces.filter(filter) : c.provinces;
-  if (!pool.length) return null;
-  const center = rng.pick(pool);
-  const ids = [center.id, ...center.neighbors.filter(() => rng.chance(0.6))].slice(0, 4);
-  return { center, ids };
-}
-
 const GENERATORS: Record<string, Gen> = {
   drought(rng, c) {
-    const cl = cluster(rng, c);
-    if (!cl) return null;
+    const where = rng.pick(REGIONS);
     const k = c.intensity;
     return base({
       kind: 'drought',
-      headline: `Severe drought scorches the region around ${cl.center.name}. Grain futures soar.`,
-      teaser: `a drought around ${cl.center.name}`,
+      headline: `Severe drought scorches ${where}. Grain futures soar.`,
+      teaser: `a drought in ${where}`,
       tone: 'bad',
       breaking: true,
       impacts: [
@@ -88,18 +88,20 @@ const GENERATORS: Record<string, Gen> = {
         { assetId: 'RICE', pct: 0.07 * k, ticks: 2 },
         { sector: 'food', pct: -0.04 * k, ticks: 2 },
       ],
-      provinceEffects: cl.ids.map((id) => ({ provinceId: id, label: 'Drought', prodMult: 0.4, ms: 90_000 })),
+      shifts: [
+        { assetId: 'WHEAT', mult: 1 + 0.1 * k },
+        { assetId: 'RICE', mult: 1 + 0.06 * k },
+      ],
       hint: { assetId: 'WHEAT', up: true },
     });
   },
   hurricane(rng, c) {
-    const cl = cluster(rng, c, (p) => p.coastal);
-    if (!cl) return null;
+    const where = rng.pick(PORTS);
     const k = c.intensity;
     return base({
       kind: 'hurricane',
-      headline: `Category ${rng.int(3, 5)} hurricane slams into ${cl.center.name}. Ports shut, refineries offline.`,
-      teaser: `a hurricane heading for ${cl.center.name}`,
+      headline: `Category ${rng.int(3, 5)} hurricane slams into ${where}. Ports shut, refineries offline.`,
+      teaser: `a hurricane heading for ${where}`,
       tone: 'bad',
       breaking: true,
       impacts: [
@@ -107,13 +109,17 @@ const GENERATORS: Record<string, Gen> = {
         { assetId: 'OIL', pct: 0.06 * k, ticks: 2 },
         { assetId: 'LUMBER', pct: 0.05 * k, ticks: 1 },
       ],
-      provinceEffects: cl.ids.map((id) => ({ provinceId: id, label: 'Hurricane damage', prodMult: 0.3, ms: 60_000 })),
+      shifts: [
+        { assetId: 'OIL', mult: 1 + 0.05 * k },
+        { sector: 'shipping', mult: 1 - 0.06 * k },
+      ],
       hint: { assetId: 'OIL', up: true },
     });
   },
   pandemic(rng, c) {
     const k = c.intensity;
-    const name = rng.pick(['Hiccup Flu', 'Variant Ω', 'Office Cough', 'Bat-Adjacent Fever', 'The Sniffles 2']);
+    const name = rng.pick(['Hiccup Flu', 'Variant Omega', 'Office Cough', 'Bat-Adjacent Fever', 'The Sniffles 2']);
+    const pharma = c.companies.find((x) => x.sector === 'pharma');
     return base({
       kind: 'pandemic',
       headline: `WHO declares ${name} a pandemic. Lockdowns spread; pharma rallies, everything else wobbles.`,
@@ -126,68 +132,59 @@ const GENERATORS: Record<string, Gen> = {
         { assetId: 'OIL', pct: -0.07 * k, ticks: 2 },
         { assetId: 'GOLD', pct: 0.04 * k, ticks: 1 },
       ],
-      stability: [{ nationId: 'all', delta: -6 * k }],
-      hint: { assetId: c.nations.flatMap((n) => n.companies).find((x) => x.sector === 'pharma')?.id ?? 'GOLD', up: true },
+      shifts: [{ sector: 'pharma', mult: 1 + 0.12 * k }],
+      hint: { assetId: pharma?.id ?? 'GOLD', up: true },
     });
   },
   breakthrough(rng, c) {
-    if (!c.nations.length) return null;
-    const n = rng.pick(c.nations);
     const k = c.intensity;
+    const tech = c.companies.filter((x) => x.sector === 'tech');
+    const winner = tech.length ? rng.pick(tech) : null;
     return base({
       kind: 'breakthrough',
-      headline: `${n.name} scientists announce a ${rng.pick(['room-temperature superconductor', 'battery that lasts a week', 'chip made of sand (more sand)', 'quantum toaster'])}. Tech stocks surge.`,
-      teaser: `a tech breakthrough in ${n.name}`,
+      headline: `${winner ? winner.name : 'Researchers'} unveil a ${rng.pick(['room-temperature superconductor', 'battery that lasts a week', 'chip made of sand (more sand)', 'quantum toaster'])}. Tech stocks surge.`,
+      teaser: 'a tech breakthrough',
       tone: 'good',
       breaking: true,
-      impacts: [
-        { nationId: n.id, sector: 'tech', pct: 0.15 * k, ticks: 2 },
-        { sector: 'tech', pct: 0.04 * k, ticks: 1 },
-        { assetId: 'LITHIUM', pct: 0.08 * k, ticks: 2 },
-      ],
-      resources: [{ nationId: n.id, res: 'tech', amount: Math.round(40 * k) }],
+      impacts: [...(winner ? [{ assetId: winner.id, pct: 0.12 * k, ticks: 2 }] : []), { sector: 'tech', pct: 0.04 * k, ticks: 1 }, { assetId: 'LITHIUM', pct: 0.08 * k, ticks: 2 }],
+      shifts: [...(winner ? [{ assetId: winner.id, mult: 1 + 0.1 * k }] : []), { assetId: 'LITHIUM', mult: 1 + 0.06 * k }],
       hint: { assetId: 'LITHIUM', up: true },
     });
   },
   discovery(rng, c) {
-    const pool = c.provinces.filter((p) => p.ownerId);
-    if (!pool.length) return null;
-    const p = rng.pick(pool);
-    const owner = c.nations.find((n) => n.id === p.ownerId);
     const k = c.intensity;
     const oil = rng.chance(0.6);
     const asset = oil ? 'OIL' : 'LITHIUM';
+    const where = rng.pick(REGIONS);
     return base({
       kind: 'discovery',
-      headline: `Massive ${oil ? 'oil field' : 'lithium deposit'} discovered beneath ${p.name}${owner ? ` (${owner.name})` : ''}. ${asset} slides on supply hopes.`,
-      teaser: `a big ${oil ? 'oil' : 'lithium'} find near ${p.name}`,
+      headline: `Massive ${oil ? 'oil field' : 'lithium deposit'} discovered beneath ${where}. ${asset} slides on supply hopes.`,
+      teaser: `a big ${oil ? 'oil' : 'lithium'} find`,
       tone: 'good',
-      impacts: [{ assetId: asset, pct: -0.08 * k, ticks: 2 }, ...(owner ? [{ nationId: owner.id, pct: 0.07 * k, ticks: 2 }] : [])],
-      provinceEffects: [{ provinceId: p.id, label: oil ? 'Oil boom' : 'Lithium boom', prodMult: 1.8, ms: 180_000 }],
-      resources: owner ? [{ nationId: owner.id, res: oil ? 'oil' : 'metals', amount: Math.round(50 * k) }] : [],
+      impacts: [{ assetId: asset, pct: -0.08 * k, ticks: 2 }, ...(oil ? [{ sector: 'energy' as Sector, pct: 0.04 * k, ticks: 2 }] : [])],
+      shifts: [{ assetId: asset, mult: 1 - 0.08 * k }],
       hint: { assetId: asset, up: false },
     });
   },
   scandal(rng, c) {
-    const cos = c.nations.flatMap((n) => n.companies);
-    if (!cos.length) return null;
-    const co = rng.pick(cos);
+    if (!c.companies.length) return null;
+    const co = rng.pick(c.companies);
     const k = c.intensity;
     return base({
       kind: 'scandal',
       source: 'Market Desk',
-      headline: `${co.name} CEO ${rng.pick(['caught expensing a yacht', 'flees the country with the pension fund', 'admits the product never existed', 'tweets something unhinged at 3am'])}. ${co.id} tanks.`,
+      headline: `${co.name} ${rng.pick(['caught expensing a yacht', 'hit by a massive data leak', 'recalls its flagship product', 'loses a key lawsuit'])}. ${co.id} tanks.`,
       teaser: `trouble at ${co.name}`,
       tone: 'bad',
       breaking: true,
-      impacts: [{ assetId: co.id, pct: -0.2 * k, ticks: 2 }],
+      impacts: [{ assetId: co.id, pct: -0.16 * k, ticks: 2 }],
+      shifts: [{ assetId: co.id, mult: 1 - 0.08 * k }],
       hint: { assetId: co.id, up: false },
     });
   },
   earnings(rng, c) {
-    const cos = c.nations.flatMap((n) => n.companies);
-    if (!cos.length) return null;
-    const co = rng.pick(cos);
+    if (!c.companies.length) return null;
+    const co = rng.pick(c.companies);
     const up = rng.chance(0.55);
     const k = c.intensity;
     return base({
@@ -196,7 +193,8 @@ const GENERATORS: Record<string, Gen> = {
       headline: up ? `${co.name} smashes earnings expectations. ${co.id} jumps.` : `${co.name} misses earnings badly, cuts guidance. ${co.id} sinks.`,
       teaser: `${co.name} earnings`,
       tone: up ? 'good' : 'bad',
-      impacts: [{ assetId: co.id, pct: (up ? 0.13 : -0.13) * k, ticks: 1 }],
+      impacts: [{ assetId: co.id, pct: (up ? 0.12 : -0.12) * k, ticks: 1 }],
+      shifts: [{ assetId: co.id, mult: 1 + (up ? 0.07 : -0.07) * k }],
       hint: { assetId: co.id, up },
     });
   },
@@ -224,12 +222,12 @@ const GENERATORS: Record<string, Gen> = {
       kind: 'coldSnap',
       headline: 'Polar vortex grips the northern hemisphere. Heating oil demand explodes.',
       teaser: 'an unusually cold winter',
-      tone: 'neutral',
       impacts: [
         { assetId: 'OIL', pct: 0.1 * k, ticks: 2 },
         { sector: 'energy', pct: 0.06 * k, ticks: 2 },
         { assetId: 'COFFEE', pct: 0.05 * k, ticks: 1 },
       ],
+      shifts: [{ assetId: 'OIL', mult: 1 + 0.06 * k }],
       hint: { assetId: 'OIL', up: true },
     });
   },
@@ -241,6 +239,7 @@ const GENERATORS: Record<string, Gen> = {
       teaser: 'a crop disease in coffee plantations',
       tone: 'bad',
       impacts: [{ assetId: 'COFFEE', pct: 0.2 * k, ticks: 2 }],
+      shifts: [{ assetId: 'COFFEE', mult: 1 + 0.15 * k }],
       hint: { assetId: 'COFFEE', up: true },
     });
   },
@@ -256,7 +255,23 @@ const GENERATORS: Record<string, Gen> = {
         { sector: 'shipping', pct: -0.08 * k, ticks: 2 },
         { assetId: 'ELEC', pct: 0.07 * k, ticks: 2 },
       ],
+      shifts: [{ assetId: 'ELEC', mult: 1 + 0.05 * k }],
       hint: { assetId: 'ELEC', up: true },
+    });
+  },
+  defenceContract(rng, c) {
+    const k = c.intensity;
+    const d = c.companies.filter((x) => x.sector === 'defence');
+    const co = d.length ? rng.pick(d) : null;
+    return base({
+      kind: 'defenceContract',
+      source: 'Market Desk',
+      headline: `${co ? co.name : 'A defence firm'} lands a record government contract. Gold and defence stocks firm up.`,
+      teaser: 'a giant government contract',
+      tone: 'good',
+      impacts: [{ sector: 'defence', pct: 0.1 * k, ticks: 2 }, { assetId: 'GOLD', pct: 0.03 * k, ticks: 1 }],
+      shifts: [{ sector: 'defence', mult: 1 + 0.06 * k }],
+      hint: co ? { assetId: co.id, up: true } : { assetId: 'GOLD', up: true },
     });
   },
   dogeTweet(rng, c) {
@@ -275,17 +290,18 @@ const GENERATORS: Record<string, Gen> = {
 };
 
 const WEIGHTS: [string, number][] = [
-  ['drought', 10],
+  ['drought', 9],
   ['hurricane', 8],
   ['pandemic', 4],
   ['breakthrough', 8],
   ['discovery', 8],
   ['scandal', 10],
-  ['earnings', 14],
+  ['earnings', 16],
   ['rates', 6],
   ['coldSnap', 6],
   ['blight', 5],
   ['tariffs', 6],
+  ['defenceContract', 5],
   ['dogeTweet', 7],
 ];
 

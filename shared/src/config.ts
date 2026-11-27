@@ -2,23 +2,13 @@
  * WARMARKET balance config.
  *
  * Every tunable number in the game lives here. The server imports this for logic,
- * the client imports it for display (costs, timers). Change a number, restart, done.
+ * the client imports it for display (costs, timers). Change a number, redeploy, done.
  */
 
-export type CommodityId =
-  | 'OIL'
-  | 'GOLD'
-  | 'WHEAT'
-  | 'COFFEE'
-  | 'LITHIUM'
-  | 'LUMBER'
-  | 'RICE'
-  | 'ELEC';
+export type CommodityId = 'OIL' | 'GOLD' | 'WHEAT' | 'COFFEE' | 'LITHIUM' | 'LUMBER' | 'RICE' | 'ELEC';
 
 export type Sector = 'energy' | 'defence' | 'tech' | 'shipping' | 'food' | 'pharma';
-export type ResourceKind = 'oil' | 'food' | 'metals' | 'tech';
-export type Terrain = 'plains' | 'forest' | 'mountain' | 'desert' | 'coast' | 'urban';
-export type BuildingKind = 'farm' | 'mine' | 'well' | 'lab' | 'fort' | 'port';
+export const SECTORS: Sector[] = ['energy', 'defence', 'tech', 'shipping', 'food', 'pharma'];
 
 export interface CommodityDef {
   id: CommodityId;
@@ -28,10 +18,13 @@ export interface CommodityDef {
   depth: number;
   /** Per-tick noise standard deviation (fraction, e.g. 0.01 = 1%). */
   volatility: number;
-  /** Which nation resource drives this commodity's global supply. */
-  supplyResource: ResourceKind;
-  /** Elasticity of fundamental price to supply shortfall. */
-  supplyElasticity: number;
+}
+
+export interface NpcCompanyDef {
+  id: string;
+  name: string;
+  sector: Sector;
+  basePrice: number;
 }
 
 export const CONFIG = {
@@ -43,6 +36,7 @@ export const CONFIG = {
     minPlayers: 1,
     maxPlayers: 8,
     maxNameLength: 16,
+    maxCompanyNameLength: 24,
     sessionMinutesOptions: [10, 20, 30, 35, 45],
     defaultSessionMinutes: 35,
     /** Rooms with no connected players are deleted after this long. */
@@ -55,20 +49,21 @@ export const CONFIG = {
   clocks: {
     worldTickMs: 100,
     marketTickMs: 20_000,
-    /** How often per-player world views are pushed (ms). */
-    viewBroadcastMs: 250,
+    /** How often per-player views are pushed (ms). */
+    viewBroadcastMs: 500,
     /** How often fuzzy pressure bars are pushed (ms). */
     pressureBroadcastMs: 2_000,
     /** Pressure bars show the order book as it was this long ago. */
     pressureDelayMs: 4_000,
   },
 
-  // ---------------------------------------------------------------- economy start
+  // ---------------------------------------------------------------- start
   start: {
-    treasury: 10_000,
-    resources: { oil: 60, food: 120, metals: 60, tech: 30 } as Record<ResourceKind, number>,
-    stability: 70,
-    provincesPerNation: 4,
+    cash: 10_000,
+    /** Founder shares each player holds in their own company at the opening bell. */
+    founderShares: 150,
+    /** IPO price of player companies. */
+    ipoPrice: 40,
   },
 
   // ---------------------------------------------------------------- market
@@ -92,27 +87,36 @@ export const CONFIG = {
     /** Each tick's candle gets fake intra-tick wicks of this size × volatility for readability. */
     wickFactor: 0.6,
     historyLength: 200,
-    /** Leverage options. 1 = none. Phase 4 unlocks > 1. */
     leverageOptions: [1, 2, 3, 5],
     maxLeverage: 5,
     /** Position equity / notional below which a position is force-closed. */
     maintenanceMargin: 0.07,
     /** Below this ratio the player gets a margin-call warning. */
     marginWarning: 0.12,
-    /** Limit orders that do not fill on their tick are cancelled. */
-    limitOrderTicks: 1,
   },
 
   commodities: [
-    { id: 'OIL', name: 'Crude Oil', basePrice: 80, depth: 30_000, volatility: 0.012, supplyResource: 'oil', supplyElasticity: 0.8 },
-    { id: 'GOLD', name: 'Gold', basePrice: 1900, depth: 45_000, volatility: 0.006, supplyResource: 'metals', supplyElasticity: 0.2 },
-    { id: 'WHEAT', name: 'Wheat', basePrice: 7, depth: 20_000, volatility: 0.01, supplyResource: 'food', supplyElasticity: 0.7 },
-    { id: 'COFFEE', name: 'Coffee', basePrice: 2.4, depth: 15_000, volatility: 0.014, supplyResource: 'food', supplyElasticity: 0.5 },
-    { id: 'LITHIUM', name: 'Lithium', basePrice: 24, depth: 18_000, volatility: 0.016, supplyResource: 'metals', supplyElasticity: 0.9 },
-    { id: 'LUMBER', name: 'Lumber', basePrice: 520, depth: 16_000, volatility: 0.012, supplyResource: 'metals', supplyElasticity: 0.4 },
-    { id: 'RICE', name: 'Rice', basePrice: 17, depth: 18_000, volatility: 0.009, supplyResource: 'food', supplyElasticity: 0.6 },
-    { id: 'ELEC', name: 'Electronics', basePrice: 140, depth: 25_000, volatility: 0.011, supplyResource: 'tech', supplyElasticity: 0.6 },
+    { id: 'OIL', name: 'Crude Oil', basePrice: 80, depth: 30_000, volatility: 0.012 },
+    { id: 'GOLD', name: 'Gold', basePrice: 1900, depth: 45_000, volatility: 0.006 },
+    { id: 'WHEAT', name: 'Wheat', basePrice: 7, depth: 20_000, volatility: 0.01 },
+    { id: 'COFFEE', name: 'Coffee', basePrice: 2.4, depth: 15_000, volatility: 0.014 },
+    { id: 'LITHIUM', name: 'Lithium', basePrice: 24, depth: 18_000, volatility: 0.016 },
+    { id: 'LUMBER', name: 'Lumber', basePrice: 520, depth: 16_000, volatility: 0.012 },
+    { id: 'RICE', name: 'Rice', basePrice: 17, depth: 18_000, volatility: 0.009 },
+    { id: 'ELEC', name: 'Electronics', basePrice: 140, depth: 25_000, volatility: 0.011 },
   ] as CommodityDef[],
+
+  /** Computer-run listed companies, so there's always plenty to trade. */
+  npcCompanies: [
+    { id: 'HOTA', name: 'Hot Air Petroleum', sector: 'energy', basePrice: 62 },
+    { id: 'DRIL', name: 'Drill Baby Drill', sector: 'energy', basePrice: 38 },
+    { id: 'BOOM', name: 'Boom Industries', sector: 'defence', basePrice: 88 },
+    { id: 'VAPR', name: 'Quantum Vapourware', sector: 'tech', basePrice: 115 },
+    { id: 'FRUT', name: 'iFruit', sector: 'tech', basePrice: 74 },
+    { id: 'SLOW', name: 'Slowboat Freight', sector: 'shipping', basePrice: 27 },
+    { id: 'SNAK', name: 'Big Snack Foods', sector: 'food', basePrice: 45 },
+    { id: 'PLCB', name: 'Placebo Pharma', sector: 'pharma', basePrice: 96 },
+  ] as NpcCompanyDef[],
 
   memecoin: {
     id: 'DOGE2',
@@ -130,19 +134,14 @@ export const CONFIG = {
   },
 
   companies: {
-    perNation: 3,
-    basePriceMin: 20,
-    basePriceMax: 120,
     depth: 14_000,
     volatility: 0.012,
-    /** Weights of the company fundamental model. */
-    stabilityWeight: 0.6,
-    territoryWeight: 0.5,
-    productionWeight: 0.35,
+    /** Fundamental shifts from events/actions decay back toward 1 by this fraction per tick. */
+    shiftDecay: 0.04,
   },
 
   /**
-   * Sector links: when a driver asset moves r% in a tick, assets in the linked sector
+   * Sector links: when a driver commodity moves r% in a tick, companies in the linked sector
    * move coef × r% on the NEXT tick (lagged so tick clearing stays order-independent).
    */
   sectorLinks: [
@@ -164,149 +163,47 @@ export const CONFIG = {
     { driver: 'WHEAT', target: 'RICE', coef: 0.3 },
   ] as { driver: CommodityId; target: CommodityId; coef: number }[],
 
-  // ---------------------------------------------------------------- world / nations
-  world: {
-    mapWidth: 1000,
-    mapHeight: 620,
-    totalCells: 70,
-    landProvinces: 38,
-    /** Per-second base production of a province by terrain. */
-    terrainYield: {
-      plains: { oil: 0, food: 0.6, metals: 0.1, tech: 0.05 },
-      forest: { oil: 0, food: 0.3, metals: 0.35, tech: 0.05 },
-      mountain: { oil: 0.05, food: 0.1, metals: 0.6, tech: 0.05 },
-      desert: { oil: 0.6, food: 0.05, metals: 0.15, tech: 0.05 },
-      coast: { oil: 0.15, food: 0.4, metals: 0.1, tech: 0.15 },
-      urban: { oil: 0, food: 0.15, metals: 0.1, tech: 0.5 },
-    } as Record<Terrain, Record<ResourceKind, number>>,
-    /** Cash income per province per second. */
-    taxPerProvince: 2,
-    capitalTaxBonus: 3,
-    /** Value of a province for net worth. */
-    provinceValue: 900,
-    capitalValue: 2500,
-    buildingValueFactor: 0.6,
-    /** Resources are valued at this many cash each for net worth. */
-    resourceValue: { oil: 6, food: 3, metals: 5, tech: 10 } as Record<ResourceKind, number>,
-    /** Export: sell nation resources for cash at the linked commodity price × this. */
-    exportPriceFactor: 0.08,
-    exportCommodity: { oil: 'OIL', food: 'WHEAT', metals: 'LITHIUM', tech: 'ELEC' } as Record<ResourceKind, CommodityId>,
-    /** Food eaten per province per second (population). */
-    foodUpkeepPerProvince: 0.18,
-    resourceCap: 2_000,
+  // ---------------------------------------------------------------- running your company
+  corporate: {
+    /** Invest in R&D: costs cash now, raises the company's fundamental value after a delay. */
+    rnd: { cost: 1500, healthGain: 0.08, delayTicks: 2, cooldownSec: 40 },
+    /** Marketing blitz: short-term hype, followed by a small hangover. */
+    marketing: { cost: 800, hype: 0.07, ticks: 2, hangover: -0.03, cooldownSec: 30 },
+    /** Buyback: spend cash, which pushes price up and slightly raises fundamentals. */
+    buyback: { minAmount: 500, maxAmount: 20_000, impactPerDepth: 0.6, healthPer1000: 0.008, cooldownSec: 30 },
+    /** Issue new shares: instant cash, dilution hits the price and fundamentals. */
+    issue: { cash: 2500, impact: -0.07, healthLoss: 0.04, cooldownSec: 60 },
+    /** Dividend: pay cash to every holder (pro rata). Investors love it. */
+    dividend: { minAmount: 300, maxAmount: 20_000, hype: 0.03, healthGain: 0.02, cooldownSec: 45 },
+    /** Cook the books: a big fake pump. Each tick there's a chance the regulator finds out. */
+    fraud: { hype: 0.16, ticks: 2, discoverChancePerTick: 0.12, crash: -0.32, fineFlat: 3000, reputationHit: 25, cooldownSec: 90 },
+    minHealth: 0.2,
+    maxHealth: 4,
   },
 
-  terrainDefence: {
-    plains: 1.0,
-    forest: 1.25,
-    mountain: 1.6,
-    desert: 1.1,
-    coast: 1.05,
-    urban: 1.35,
-  } as Record<Terrain, number>,
-
-  /** Travel time multiplier entering a province of this terrain. */
-  terrainTravel: {
-    plains: 1.0,
-    forest: 1.3,
-    mountain: 1.8,
-    desert: 1.4,
-    coast: 1.1,
-    urban: 1.0,
-  } as Record<Terrain, number>,
-
-  buildings: {
-    farm: { cost: 900, resources: { metals: 10 }, buildSec: 25, yield: { food: 0.6 }, defence: 0 },
-    mine: { cost: 1100, resources: { oil: 10 }, buildSec: 30, yield: { metals: 0.5 }, defence: 0 },
-    well: { cost: 1300, resources: { metals: 20 }, buildSec: 30, yield: { oil: 0.5 }, defence: 0 },
-    lab: { cost: 1800, resources: { metals: 20, oil: 10 }, buildSec: 40, yield: { tech: 0.35 }, defence: 0 },
-    fort: { cost: 1500, resources: { metals: 40 }, buildSec: 35, yield: {}, defence: 0.5 },
-    port: { cost: 1400, resources: { metals: 25 }, buildSec: 30, yield: {}, defence: 0, tax: 3 },
-  } as Record<
-    BuildingKind,
-    {
-      cost: number;
-      resources: Partial<Record<ResourceKind, number>>;
-      buildSec: number;
-      yield: Partial<Record<ResourceKind, number>>;
-      defence: number;
-      tax?: number;
-    }
-  >,
-  maxBuildingsPerProvince: 2,
-
-  stability: {
-    max: 100,
-    /** Drifts toward this baseline when nothing bad is happening. */
-    baseline: 70,
-    regenPerSec: 0.08,
-    warPerSec: 0.05,
-    sanctionPerSec: 0.04,
-    starvationPerSec: 0.4,
-    /** Applied once when you declare war. */
-    declareWarHit: 10,
-    provinceLostHit: 6,
-    provinceWonBoost: 3,
-    /** Company crash: if avg company price < this × listing price, lose stability. */
-    crashThreshold: 0.6,
-    crashPerSec: 0.08,
-    protestThreshold: 30,
-    protestProductionMult: 0.6,
-    /** At 0: coup. The nation splits; these fractions of provinces revolt to neutral. */
-    coupSplitFraction: 0.4,
-    coupTreasuryLoss: 0.3,
-    coupResetStability: 40,
-  },
-
-  // ---------------------------------------------------------------- military
-  military: {
-    /** Strength of one recruited army. */
-    armyStrength: 10,
-    armyCost: 600,
-    armyResources: { metals: 12, oil: 6, food: 10 } as Partial<Record<ResourceKind, number>>,
-    armyBuildSec: 20,
-    maxArmiesPerPlayer: 30,
-    /** Base travel seconds between adjacent provinces, scaled by terrainTravel. Clamped to [min,max]. */
-    travelBaseSec: 32,
-    travelMinSec: 30,
-    travelMaxSec: 90,
-    /** Food upkeep per point of strength per second. */
-    foodUpkeepPerStrength: 0.004,
-    /** Neutral provinces start with this garrison strength (random 0.6..1.4 ×). */
-    neutralGarrison: 14,
-    /** Owned provinces have this passive garrison. */
-    ownedGarrison: 6,
-    /** Battle randomness: each side rolls a multiplier in [1-r, 1+r]. */
-    battleRandomness: 0.2,
-    warDeclareCooldownSec: 60,
-    /** Must wait this long after declaring war before your armies may enter target land. */
-    warMobilisationSec: 10,
-    peaceCooldownSec: 60,
-    /** Fog of war: provinces within this many hops of yours are visible. */
-    visionRange: 1,
-  },
-
-  // ---------------------------------------------------------------- market shocks from war
-  shocks: {
-    warDeclared: { defence: 0.1, oil: 0.06, targetCompanies: -0.12, aggressorCompanies: -0.04, durationTicks: 2 },
-    provinceCaptured: { loserCompanies: -0.06, winnerCompanies: 0.03, durationTicks: 1 },
-    oilProvinceCaptured: { oil: 0.04 },
-    sanction: { targetCompanies: -0.08, durationTicks: 2 },
-    embargo: { targetCompanies: -0.12, durationTicks: 3 },
-    coup: { companies: -0.25, durationTicks: 2 },
+  // ---------------------------------------------------------------- influencing the market
+  influence: {
+    /** Plant a story (pump or smear) about any company or commodity. */
+    story: { cost: 1000, impact: 0.08, successChance: 0.75, fine: 1500, reputationHit: 15, cooldownSec: 30 },
+    /** Lobby the government to push a commodity up or down over a few ticks. */
+    lobby: { cost: 2500, impact: 0.06, ticks: 3, cooldownSec: 45 },
+    /** Spy on a rival's trading desk: see their queued orders. */
+    spy: { cost: 1200, durationSec: 90, caughtChance: 0.25, reputationHit: 10, cooldownSec: 30 },
+    /** Buy a research subscription: see the live, exact order book. */
+    research: { cost: 600, durationSec: 60, cooldownSec: 10 },
   },
 
   // ---------------------------------------------------------------- news + events
   events: {
     /** Probability per market tick of a world event at the start / end of the game. */
-    chanceStart: 0.18,
-    chanceEnd: 0.55,
+    chanceStart: 0.25,
+    chanceEnd: 0.6,
     /** Magnitude multiplier at the start / end of the game. */
     intensityStart: 0.8,
     intensityEnd: 2.0,
     /** Rumour Mill headlines are false this often. */
     rumourFalseRate: 0.4,
-    /** Chance an event is pre-announced by a rumour a tick before it fires. */
+    /** Chance an event is pre-announced by a rumour before it fires. */
     rumourLeadChance: 0.35,
     /** Chance an event triggers a private insider tip shortly before. */
     insiderTipChance: 0.45,
@@ -315,36 +212,10 @@ export const CONFIG = {
     newsHistory: 80,
   },
 
-  // ---------------------------------------------------------------- diplomacy
-  diplomacy: {
-    chatMaxLength: 240,
-    chatHistory: 100,
-    chatRateMs: 600,
-    maxDealDurationSec: 600,
-    breakDealReputationHit: 20,
-    breakDealStabilityHit: 4,
-    startingReputation: 100,
-    sanctionStabilityPerSec: 0.04,
-    /** A target sanctioned by this many players is under embargo: no exports, no deals. */
-    embargoThreshold: 2,
-    allianceBreakReputationHit: 15,
-    proposalTtlMs: 60_000,
-  },
-
-  // ---------------------------------------------------------------- espionage
-  espionage: {
-    spyCost: 1200,
-    spyTech: 15,
-    spyTrainSec: 30,
-    maxSpies: 4,
-    missionSec: { vision: 8, orderflow: 8, stealTech: 15, fakeNews: 10 } as Record<string, number>,
-    successChance: { vision: 0.85, orderflow: 0.75, stealTech: 0.6, fakeNews: 0.7 } as Record<string, number>,
-    visionDurationSec: 120,
-    orderflowDurationSec: 90,
-    stealTechFraction: 0.3,
-    fakeNewsImpact: -0.08,
-    caughtReputationHit: 10,
-    cooldownSec: 20,
+  chat: {
+    maxLength: 240,
+    history: 100,
+    rateMs: 600,
   },
 
   regulator: {
@@ -361,16 +232,17 @@ export const CONFIG = {
     fineProfitFraction: 0.6,
   },
 
-  roles: {
-    whaleCashMultiplier: 2.5,
-    /** Analysts see pressure bars with less noise and no delay. */
-    analystNoise: 0.03,
-    journalistHeadlineCooldownSec: 90,
+  reputation: {
+    start: 100,
+    /** Low reputation makes every regulator check more likely to bite (up to ×this at 0). */
+    maxSuspicionMult: 1.8,
   },
 
-  modes: {
-    dominationShare: 0.45,
-    hegemonyHoldSec: 60,
+  roles: {
+    whaleCashMultiplier: 2.5,
+    /** Analysts see pressure bars with little noise and no delay. */
+    analystNoise: 0.03,
+    journalistHeadlineCooldownSec: 90,
   },
 
   net: {

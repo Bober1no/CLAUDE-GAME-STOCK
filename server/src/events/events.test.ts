@@ -5,14 +5,11 @@ import { EVENT_KINDS, eventChanceAt, intensityAt, rollEvent, rumourHeadline, typ
 
 const ctx: EventContext = {
   intensity: 1,
-  provinces: [
-    { id: 0, name: 'A', coastal: true, ownerId: 'n0', neighbors: [1] },
-    { id: 1, name: 'B', coastal: false, ownerId: null, neighbors: [0, 2] },
-    { id: 2, name: 'C', coastal: true, ownerId: 'n1', neighbors: [1] },
-  ],
-  nations: [
-    { id: 'n0', name: 'Oilvania', companies: [{ id: 'OILE', name: 'Oilvania Petroleum', sector: 'energy' }, { id: 'OILP', name: 'Oilvania Pharma', sector: 'pharma' }] },
-    { id: 'n1', name: 'Ricebowl', companies: [{ id: 'RICT', name: 'iRicebowl', sector: 'tech' }] },
+  companies: [
+    { id: 'HOTA', name: 'Hot Air Petroleum', sector: 'energy', ownerId: null },
+    { id: 'PLCB', name: 'Placebo Pharma', sector: 'pharma', ownerId: null },
+    { id: 'ALIC', name: 'Alice Corp', sector: 'tech', ownerId: 'p0' },
+    { id: 'BOOM', name: 'Boom Industries', sector: 'defence', ownerId: null },
   ],
 };
 
@@ -36,9 +33,9 @@ describe('event scheduler', () => {
       for (const i of e.impacts) {
         expect(Number.isFinite(i.pct)).toBe(true);
         expect(i.ticks).toBeGreaterThan(0);
-        expect(i.assetId || i.sector || i.nationId || i.allCompanies).toBeTruthy();
+        expect(i.assetId || i.sector || i.allCompanies).toBeTruthy();
       }
-      for (const p of e.provinceEffects) expect(ctx.provinces.some((x) => x.id === p.provinceId)).toBe(true);
+      for (const s of e.shifts) expect(s.mult).toBeGreaterThan(0);
     }
   });
 
@@ -53,8 +50,8 @@ describe('event scheduler', () => {
     expect(rumourHeadline(new Rng(5), 'x')).toBe(rumourHeadline(new Rng(5), 'x'));
   });
 
-  it('copes with an empty world', () => {
-    const e = rollEvent(new Rng(3), { intensity: 1, provinces: [], nations: [] });
+  it('copes with no companies', () => {
+    const e = rollEvent(new Rng(3), { intensity: 1, companies: [] });
     expect(e === null || e.impacts.length > 0).toBe(true);
   });
 });

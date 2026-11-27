@@ -4,7 +4,7 @@
  * stored session we ask the server to put us back in our seat.
  */
 import { io, type Socket } from 'socket.io-client';
-import type { Ack, Action, ClientToServer, LobbySettings, ServerToClient, SessionInfo } from '@warmarket/shared';
+import type { Ack, Action, ClientToServer, LobbySettings, Sector, ServerToClient, SessionInfo } from '@warmarket/shared';
 import { getState, localNotice, pushNotice, resetGameState, setState } from '../state/store';
 
 const SESSION_KEY = 'warmarket.session';
@@ -128,6 +128,10 @@ export function updateSettings(p: Partial<LobbySettings>) {
 export function startGame() {
   return withAck<Ack>((cb) => socket.emit('lobby:start', {}, cb));
 }
+export function setCompany(p: { companyName?: string; sector?: Sector }) {
+  return withAck<Ack>((cb) => socket.emit('lobby:company', p, cb));
+}
+
 export async function renameMe(name: string) {
   const r = await withAck<Ack>((cb) => socket.emit('lobby:rename', { name }, cb));
   if (r.ok) {

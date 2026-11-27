@@ -1,4 +1,4 @@
-import { fmtMoney } from '@warmarket/shared';
+import { fmtMoney, fmtPct } from '@warmarket/shared';
 import { leaveRoom } from '../net/socket';
 import { setState, useStore } from '../state/store';
 
@@ -11,7 +11,7 @@ export function Recap() {
     <div className="overlay">
       <div className="recap">
         <div className="recap-hero">
-          <div className="label" style={{ color: 'var(--amber)' }}>Final bell</div>
+          <div className="label" style={{ color: 'var(--amber)' }}>Closing bell</div>
           <div className="w" style={{ color: winner?.color }}>
             {winner ? `${winner.name} wins` : 'No winner'}
             {winner?.playerId === me && ' — that’s you'}
@@ -23,7 +23,7 @@ export function Recap() {
             <tr>
               <th>#</th>
               <th>Player</th>
-              <th className="r">Provinces</th>
+              <th className="r">Company</th>
               <th className="r">Net worth</th>
             </tr>
           </thead>
@@ -35,7 +35,9 @@ export function Recap() {
                   <span className="swatch" style={{ background: s.color, marginRight: 6 }} />
                   {s.name}
                 </td>
-                <td className="r num">{s.provinces}</td>
+                <td className="r num">
+                  {s.companyId} <span className={s.companyChange >= 0 ? 'up' : 'down'}>{fmtPct(s.companyChange, 0)}</span>
+                </td>
                 <td className="r num">{fmtMoney(s.netWorth)}</td>
               </tr>
             ))}
